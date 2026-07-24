@@ -1,0 +1,91 @@
+:root {
+  --text: #5b5347;
+  --text-h: #2a2015;
+  --bg: #f7f2e7;
+  --border: #ddd0b0;
+  --row-alt: #efe6d3;
+  --accent: #9c7a1f;
+  --accent-bg: rgba(156, 122, 31, 0.12);
+  --gain: #2f7a1f;
+  --loss: #a13324;
+
+  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
+
+  font: 16px/145% var(--sans);
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #a8a8a8;
+    --text-h: #f0e2b6;
+    --bg: #0d0d0c;
+    --border: #3a332a;
+    --row-alt: #171512;
+    --accent: #c9a227;
+    --accent-bg: rgba(201, 162, 39, 0.14);
+    --gain: #5fae4d;
+    --loss: #c0392b;
+  }
+}
+
+body {
+  margin: 0;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 500px;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to bottom, transparent 0%, var(--bg) 90%), url("/bg.webp");
+  background-repeat: no-repeat, no-repeat;
+  background-position:
+    top center,
+    top center;
+  background-size:
+    100% 100%,
+    cover;
+}
+
+#root {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px 48px;
+  box-sizing: border-box;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--sans);
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+h1 {
+  font-size: 32px;
+  margin: 32px 0 24px;
+}
+
+h2 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+
+h3 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}

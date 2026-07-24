@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>poe2-market-guide</title>
+    <!-- Mirrors src/index.css's --bg and body::before so the page looks the
+         same before the app's stylesheet and data have loaded. Keep in sync. -->
+    <style>
+      :root {
+        --bg: #f7f2e7;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d0d0c;
+        }
+      }
+      html {
+        background: var(--bg);
+      }
+      body {
+        margin: 0;
+        position: relative;
+      }
+      body::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 500px;
+        z-index: -1;
+        pointer-events: none;
+        background-image:
+          linear-gradient(to bottom, transparent 0%, var(--bg) 90%),
+          url("/bg.webp");
+        background-repeat: no-repeat, no-repeat;
+        background-position:
+          top center,
+          top center;
+        background-size:
+          100% 100%,
+          cover;
+      }
+      .loading-spinner {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .loading-spinner::after {
+        content: "";
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: 4px solid rgba(156, 122, 31, 0.25);
+        border-top-color: #9c7a1f;
+        animation: loading-spinner-spin 0.8s linear infinite;
+      }
+      @media (prefers-color-scheme: dark) {
+        .loading-spinner::after {
+          border-color: rgba(201, 162, 39, 0.2);
+          border-top-color: #c9a227;
+        }
+      }
+      @keyframes loading-spinner-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="loading-spinner" role="status" aria-label="Loading"></div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
