@@ -185,6 +185,55 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
+.pair-currency-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pair-currency-filter-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f5ecd8;
+}
+
+.pair-currency-filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pair-currency-filter-button {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: rgba(16, 20, 34, 0.4);
+  color: #c9c2ab;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pair-currency-filter-button:hover {
+  background: rgba(16, 20, 34, 0.6);
+}
+
+.pair-currency-filter-button-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #14121c;
+}
+
+.pair-currency-filter-button-active:hover {
+  background: var(--accent);
+  filter: brightness(1.15);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
 .current-day-slider {
   display: flex;
   flex-direction: column;

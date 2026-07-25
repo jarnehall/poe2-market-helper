@@ -103,6 +103,35 @@ export function filterLeaguesByCategories(
   }));
 }
 
+// Every currency an item can be traded against (a "pair"), e.g. "divine",
+// "exalted", "chaos", across every league. Drives the pair currency filter
+// toggles.
+export const ALL_PAIR_CURRENCIES: string[] = [
+  ...new Set(
+    LEAGUES.flatMap((league) =>
+      league.itemEntries.flatMap((entry) =>
+        entry.pairs.map((pair) => pair.id),
+      ),
+    ),
+  ),
+].sort();
+
+// Leagues with each item's pairs narrowed down to only the given currencies
+// — an item with none of its pairs selected effectively drops out, since
+// there's nothing left to rank or chart it by.
+export function filterLeaguesByPairCurrencies(
+  leagues: League[],
+  pairCurrencies: string[],
+): League[] {
+  return leagues.map((league) => ({
+    ...league,
+    itemEntries: league.itemEntries.map((entry) => ({
+      ...entry,
+      pairs: entry.pairs.filter((pair) => pairCurrencies.includes(pair.id)),
+    })),
+  }));
+}
+
 export function getLeagueById(leagueId: string): League {
   return LEAGUES.find((league) => league.id === leagueId) ?? LEAGUES[0];
 }

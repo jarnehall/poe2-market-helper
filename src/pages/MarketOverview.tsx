@@ -5,10 +5,12 @@ import CurrentDaySlider from "../components/CurrentDaySlider";
 import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
+import PairCurrencyFilter from "../components/PairCurrencyFilter";
 import TrendWindowSliders from "../components/TrendWindowSliders";
 import { useCategory } from "../context/CategoryContext";
 import { useCurrentDay } from "../context/CurrentDayContext";
 import { useLeague } from "../context/LeagueContext";
+import { usePairCurrency } from "../context/PairCurrencyContext";
 import { useTrendWindow } from "../context/TrendWindowContext";
 import { formatIsoDate, formatTimeUntil } from "../lib/format";
 import {
@@ -22,6 +24,7 @@ import {
   MIN_BEST_INVESTMENT_COUNT,
   MIN_VOLUME_FILTER,
   filterLeaguesByCategories,
+  filterLeaguesByPairCurrencies,
   getBestInvestmentsForWindow,
 } from "../lib/marketData";
 import { getStoredNumber, setStoredNumber } from "../lib/storage";
@@ -30,13 +33,18 @@ function MarketOverview() {
   const { currentDayOfLeague, resetCurrentDay } = useCurrentDay();
   const { selectedLeagues } = useLeague();
   const { selectedCategories, resetCategories } = useCategory();
+  const { selectedPairCurrencies, resetPairCurrencies } = usePairCurrency();
   const { daysBack, daysForward, setDaysBack, setDaysForward } =
     useTrendWindow();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filtersMenuRef = useRef<HTMLDivElement>(null);
   const filteredLeagues = useMemo(
-    () => filterLeaguesByCategories(selectedLeagues, selectedCategories),
-    [selectedLeagues, selectedCategories],
+    () =>
+      filterLeaguesByPairCurrencies(
+        filterLeaguesByCategories(selectedLeagues, selectedCategories),
+        selectedPairCurrencies,
+      ),
+    [selectedLeagues, selectedCategories, selectedPairCurrencies],
   );
   const [investmentCount, setInvestmentCount] = useState(() =>
     getStoredNumber("investmentCount", DEFAULT_BEST_INVESTMENT_COUNT),
@@ -65,6 +73,7 @@ function MarketOverview() {
 
   const resetFilters = () => {
     resetCategories();
+    resetPairCurrencies();
     resetCurrentDay();
     setDaysBack(DEFAULT_DAYS_BACK);
     setDaysForward(DEFAULT_DAYS_FORWARD);
@@ -103,6 +112,7 @@ function MarketOverview() {
           {isFiltersOpen && (
             <div className="filters-dropdown">
               <CategoryFilter />
+              <PairCurrencyFilter />
               <CurrentDaySlider />
               <TrendWindowSliders />
               <InvestmentCountSlider
