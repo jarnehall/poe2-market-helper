@@ -680,6 +680,8 @@
   color: var(--text);
   background: var(--row-alt);
   border: 1px solid var(--border);
+  line-height: 1;
+  text-align: center;
 }
 
 .change-positive {
