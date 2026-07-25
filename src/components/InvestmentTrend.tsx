@@ -1,6 +1,6 @@
 import { useCurrentDay } from "../context/CurrentDayContext";
 import { useTrendWindow } from "../context/TrendWindowContext";
-import { formatDate, formatRate } from "../lib/format";
+import { formatRate } from "../lib/format";
 import {
   getAllHistoryRows,
   getHistoryRowsInWindow,
@@ -126,7 +126,7 @@ function InvestmentTrend({
                 r={row.isCurrentDay ? 3 : 1.5}
               >
                 <title>
-                  {`${league.name} — Day ${row.dayOfLeague} (${formatDate(row.entry.timestamp)}): ${row.entry.rate}`}
+                  {`Day ${row.dayOfLeague}: ${row.entry.rate} (Volume: ${row.entry.volumePrimaryValue.toLocaleString()})`}
                 </title>
               </circle>
             ))}

@@ -8,6 +8,7 @@ interface CategoryContextValue {
   selectedCategories: string[]
   isCategorySelected: (category: string) => boolean
   toggleCategory: (category: string) => void
+  resetCategories: () => void
 }
 
 const CategoryContext = createContext<CategoryContextValue | null>(null)
@@ -30,6 +31,8 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  const resetCategories = () => setSelectedCategories(ALL_CATEGORIES)
+
   const value = useMemo<CategoryContextValue>(
     () => ({
       categories: ALL_CATEGORIES,
@@ -37,6 +40,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
       isCategorySelected: (category: string) =>
         selectedCategories.includes(category),
       toggleCategory,
+      resetCategories,
     }),
     [selectedCategories],
   )

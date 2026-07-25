@@ -1,4 +1,9 @@
+import currentLeague from "../data/current-league.json";
 import type { HistoryEntry, ItemEntry, MarketItem } from "../types";
+
+// The active league's own name/version/start date, from current-league.json
+// — distinct from LEAGUES, which are just sample datasets for the app.
+export const CURRENT_LEAGUE_INFO = currentLeague;
 
 type ItemEntryModules = Record<string, { default: ItemEntry[] }>;
 
@@ -8,7 +13,10 @@ type ItemEntryModules = Record<string, { default: ItemEntry[] }>;
 // Vaal Orb items are "Vaal" in one league's data and "Incursion" in
 // another's).
 function categoryFromModulePath(path: string): string {
-  const fileName = path.split("/").pop()!.replace(/\.json$/, "");
+  const fileName = path
+    .split("/")
+    .pop()!
+    .replace(/\.json$/, "");
   return fileName
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -44,7 +52,6 @@ const riseOfTheAbyssalModules = import.meta.glob(
 export interface League {
   id: string;
   name: string;
-  startDate: string;
   color: string;
   itemEntries: ItemEntry[];
 }
@@ -53,21 +60,18 @@ export const LEAGUES: League[] = [
   {
     id: "runes-of-aldur",
     name: "Runes of Aldur",
-    startDate: "2026-12-06T00:00:00Z",
     color: "#2c8ed4",
     itemEntries: mergeItemEntryModules(runesOfAldurModules),
   },
   {
     id: "fate-of-the-vaal",
     name: "Fate of the Vaal",
-    startDate: "2025-12-12T00:00:00Z",
     color: "#d94a4a",
     itemEntries: mergeItemEntryModules(fateOfTheVaalModules),
   },
   {
     id: "rise-of-the-abyssal",
     name: "Rise of the Abyssal",
-    startDate: "2025-09-09T00:00:00Z",
     color: "#04c514",
     itemEntries: mergeItemEntryModules(riseOfTheAbyssalModules),
   },
@@ -103,7 +107,17 @@ export function getLeagueById(leagueId: string): League {
   return LEAGUES.find((league) => league.id === leagueId) ?? LEAGUES[0];
 }
 
-export const DEFAULT_CURRENT_DATE = "2026-12-21T00:00:00Z";
+// Always today, truncated to UTC midnight to match the daily granularity of
+// the history data — recomputed on every load instead of a hardcoded date
+// that'd otherwise need updating by hand as real time moves on.
+function getTodayAtUtcMidnight(): string {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  ).toISOString();
+}
+
+export const DEFAULT_CURRENT_DATE = getTodayAtUtcMidnight();
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -119,9 +133,12 @@ export function getDayOfLeagueForDate(
   );
 }
 
+// The active league's real start date lives in current-league.json, not in
+// the sample datasets under LEAGUES — each of those has its own history
+// window that isn't tied to any particular real-world start date.
 export const DEFAULT_DAY_OF_LEAGUE = getDayOfLeagueForDate(
   DEFAULT_CURRENT_DATE,
-  LEAGUES[0].startDate,
+  currentLeague.startDate,
 );
 
 // The slider always spans from the start of the league to
@@ -145,6 +162,12 @@ export const DEFAULT_DAYS_FORWARD = 3;
 export const MIN_BEST_INVESTMENT_COUNT = 3;
 export const MAX_BEST_INVESTMENT_COUNT = 18;
 export const DEFAULT_BEST_INVESTMENT_COUNT = 9;
+
+// Bounds and default for the user-controlled slider that hides items with
+// too little trade volume on the active day to trust.
+export const MIN_VOLUME_FILTER = 0;
+export const MAX_VOLUME_FILTER = 5000;
+export const DEFAULT_MIN_VOLUME = 100;
 
 const IMAGE_BASE_URL = "https://web.poecdn.com";
 
@@ -325,6 +348,18 @@ export function getWindowPercentChange(
   );
 }
 
+// A pair's trade volume on exactly currentDayOfLeague, or null if it has no
+// entry for that day (e.g. an illiquid pair with no trade that day).
+export function getVolumeForDay(
+  history: HistoryEntry[],
+  currentDayOfLeague: number,
+): number | null {
+  const row = getAllHistoryRows(history, currentDayOfLeague).find(
+    (row) => row.dayOfLeague === currentDayOfLeague,
+  );
+  return row ? row.entry.volumePrimaryValue : null;
+}
+
 function average(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -488,6 +523,7 @@ function getBestInvestmentsBy(
   ) => number | null,
   count: number,
   currentDayOfLeague: number,
+  minVolume: number,
 ): BestInvestment[] {
   const bestByItemId = new Map<string, BestInvestment>();
 
@@ -498,6 +534,12 @@ function getBestInvestmentsBy(
         item.id,
         pairId,
       );
+      const volumes = leagueHistories
+        .map(({ history }) => getVolumeForDay(history, currentDayOfLeague))
+        .filter((volume): volume is number => volume !== null);
+      const volume = average(volumes);
+      if (volume === null || volume < minVolume) continue;
+
       const changes = leagueHistories
         .map(({ history }) => getPercentChange(history, currentDayOfLeague))
         .filter((change): change is number => change !== null);
@@ -530,6 +572,7 @@ export function getBestInvestmentsForWindow(
   currentDayOfLeague: number,
   daysBack: number,
   daysForward: number,
+  minVolume: number,
 ): BestInvestment[] {
   return getBestInvestmentsBy(
     leagues,
@@ -537,5 +580,6 @@ export function getBestInvestmentsForWindow(
       getWindowPercentChange(history, day, daysBack, daysForward),
     count,
     currentDayOfLeague,
+    minVolume,
   );
 }
