@@ -9,6 +9,9 @@ function InvestmentCountSlider({
   minCount: number
   maxCount: number
 }) {
+  const percent =
+    maxCount > minCount ? ((count - minCount) / (maxCount - minCount)) * 100 : 0
+
   return (
     <div className="investment-count-slider">
       <label
@@ -26,6 +29,9 @@ function InvestmentCountSlider({
         step={1}
         value={count}
         onChange={(event) => setCount(Number(event.target.value))}
+        style={{
+          background: `linear-gradient(to right, color-mix(in srgb, var(--accent) 40%, var(--row-alt)) ${percent}%, var(--row-alt) ${percent}%)`,
+        }}
       />
     </div>
   )

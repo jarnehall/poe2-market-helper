@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import BestInvestment from "../components/BestInvestment";
 import CategoryFilter from "../components/CategoryFilter";
-import CurrentDaySlider from "../components/CurrentDaySlider";
 import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
 import PairCurrencyFilter from "../components/PairCurrencyFilter";
-import TrendWindowSliders from "../components/TrendWindowSliders";
+import WindowSlider from "../components/WindowSlider";
 import { useCategory } from "../context/CategoryContext";
 import { useCurrentDay } from "../context/CurrentDayContext";
 import { useLeague } from "../context/LeagueContext";
@@ -113,8 +112,7 @@ function MarketOverview() {
             <div className="filters-dropdown">
               <CategoryFilter />
               <PairCurrencyFilter />
-              <CurrentDaySlider />
-              <TrendWindowSliders />
+              <WindowSlider />
               <InvestmentCountSlider
                 count={investmentCount}
                 setCount={setInvestmentCount}
