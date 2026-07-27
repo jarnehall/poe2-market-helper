@@ -4,6 +4,16 @@
   gap: 40px;
 }
 
+.app-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  text-align: center;
+  color: var(--text);
+}
+
 .league-banner {
   display: flex;
   flex-direction: column;
@@ -117,6 +127,14 @@
   transition: transform 0.15s ease;
 }
 
+.filters-dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--select);
+  flex-shrink: 0;
+}
+
 .filters-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -134,8 +152,38 @@
   box-shadow: var(--shadow-float);
 }
 
-.filters-reset-button {
+.filters-actions {
+  display: flex;
+  gap: 10px;
   margin-top: 4px;
+}
+
+.filters-apply-button {
+  flex: 1;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--select);
+  background: var(--select);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.filters-apply-button:hover:not(:disabled) {
+  filter: brightness(1.15);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.filters-apply-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.filters-reset-button {
   padding: 8px 14px;
   border-radius: var(--radius-md);
   border: 1px solid var(--loss);
@@ -369,6 +417,83 @@
 .best-investment-card:hover {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.best-investment-card-skeleton {
+  cursor: default;
+}
+
+.best-investment-card-skeleton:hover {
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.skeleton-block {
+  border-radius: var(--radius-md);
+  background: var(--border);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.skeleton-image {
+  height: 36px;
+  width: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Every plain text span in the real cards inherits the same 23px line-height
+   from the root font shorthand regardless of its own font-size (none of them
+   set their own line-height), so a bare placeholder line needs this same
+   height to avoid changing the card's overall height once real content
+   swaps in. */
+.skeleton-text {
+  height: 23px;
+}
+
+.skeleton-text-name {
+  width: 55%;
+}
+
+.skeleton-text-badge {
+  width: 55px;
+  height: 21px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.skeleton-chart {
+  width: 100%;
+  aspect-ratio: 160 / 50;
+}
+
+.skeleton-text-versus {
+  width: 40%;
+}
+
+.skeleton-text-change {
+  width: 70px;
+}
+
+.skeleton-text-link {
+  width: 55px;
+}
+
+.best-investment-card-skeleton:nth-child(2) .skeleton-block {
+  animation-delay: 0.12s;
+}
+
+.best-investment-card-skeleton:nth-child(3) .skeleton-block {
+  animation-delay: 0.24s;
 }
 
 .best-investment-card-header {

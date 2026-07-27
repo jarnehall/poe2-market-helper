@@ -1,17 +1,9 @@
 import { useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { useCurrentDay } from "../context/CurrentDayContext";
-import { useTrendWindow } from "../context/TrendWindowContext";
+import { useMeta } from "../context/MetaContext";
 import { changeClass, formatPercentChange, formatRate } from "../lib/format";
-import {
-  getAllHistoryRows,
-  getHistoryRowsInWindow,
-  getPairDisplayName,
-  getPairImageUrl,
-  type HistoryRow,
-  type League,
-  type LeagueHistory,
-} from "../lib/marketData";
+import { getImageUrl } from "../lib/marketData";
+import type { HistoryRow, LeagueHistoryRows, LeagueMeta } from "../types";
 
 const WIDTH = 160;
 const HEIGHT = 50;
@@ -19,7 +11,7 @@ const PADDING = 3;
 const PADDING_LEFT = 16;
 
 interface HoveredPoint {
-  league: League;
+  league: LeagueMeta;
   row: HistoryRow;
   clientX: number;
   clientY: number;
@@ -27,13 +19,20 @@ interface HoveredPoint {
 
 function InvestmentTrend({
   leagueHistories,
-  pairId,
+  pairName,
+  pairImage,
+  currentDayOfLeague,
+  daysBack,
+  daysForward,
 }: {
-  leagueHistories: LeagueHistory[];
-  pairId: string;
+  leagueHistories: LeagueHistoryRows[];
+  pairName: string;
+  pairImage: string | null;
+  currentDayOfLeague: number;
+  daysBack: number;
+  daysForward: number;
 }) {
-  const { currentDayOfLeague } = useCurrentDay();
-  const { daysBack, daysForward } = useTrendWindow();
+  const { leagues } = useMeta();
   const [hovered, setHovered] = useState<HoveredPoint | null>(null);
 
   const startDay = currentDayOfLeague - daysBack;
@@ -44,20 +43,19 @@ function InvestmentTrend({
     PADDING_LEFT +
     ((dayOfLeague - startDay) / dayRange) * (WIDTH - PADDING_LEFT - PADDING);
 
+  const leagueById = new Map(leagues.map((league) => [league.id, league]));
+
+  // The rows here are already trimmed to the requested window server-side —
+  // no client-side day-of-league math needed, just render what came back.
   const perLeagueRows = leagueHistories
-    .map(({ league, history }) => ({
-      league,
-      rows: getHistoryRowsInWindow(
-        getAllHistoryRows(history, currentDayOfLeague),
-        daysBack,
-        daysForward,
-        currentDayOfLeague,
-      ),
-    }))
-    .filter(({ rows }) => rows.length >= 2);
+    .map(({ leagueId, rows }) => ({ league: leagueById.get(leagueId), rows }))
+    .filter(
+      (entry): entry is { league: LeagueMeta; rows: HistoryRow[] } =>
+        entry.league !== undefined && entry.rows.length >= 2,
+    );
 
   const allRates = perLeagueRows.flatMap(({ rows }) =>
-    rows.map((row) => row.entry.rate),
+    rows.map((row) => row.rate),
   );
   if (allRates.length === 0) return null;
 
@@ -76,9 +74,7 @@ function InvestmentTrend({
           (rate, index, rates) => rates.indexOf(rate) === index,
         );
 
-  const leagues = leagueHistories.map(({ league }) => league);
-  const pairImageUrl = getPairImageUrl(pairId, leagues);
-  const pairName = getPairDisplayName(pairId, leagues);
+  const pairImageUrl = pairImage ? getImageUrl(pairImage) : undefined;
 
   return (
     <div className="investment-trend-wrap">
@@ -118,7 +114,7 @@ function InvestmentTrend({
           .map(({ league, rows }) => {
             const points = rows.map((row) => ({
               x: xForDay(row.dayOfLeague),
-              y: yForRate(row.entry.rate),
+              y: yForRate(row.rate),
               row,
             }));
             const linePath = points
@@ -136,36 +132,39 @@ function InvestmentTrend({
                   d={linePath}
                   fill="none"
                 />
-                {points.map(({ x, y, row }) => (
-                  <g key={row.dayOfLeague}>
-                    <circle
-                      className={
-                        row.isCurrentDay
-                          ? "investment-trend-point-current"
-                          : "investment-trend-point"
-                      }
-                      style={{ fill: league.color }}
-                      cx={x}
-                      cy={y}
-                      r={row.isCurrentDay ? 3 : 1.5}
-                    />
-                    <circle
-                      className="investment-trend-point-hit-area"
-                      cx={x}
-                      cy={y}
-                      r={5}
-                      onMouseEnter={(event: ReactMouseEvent) =>
-                        setHovered({
-                          league,
-                          row,
-                          clientX: event.clientX,
-                          clientY: event.clientY,
-                        })
-                      }
-                      onMouseLeave={() => setHovered(null)}
-                    />
-                  </g>
-                ))}
+                {points.map(({ x, y, row }) => {
+                  const isCurrentDay = row.dayOfLeague === currentDayOfLeague;
+                  return (
+                    <g key={row.dayOfLeague}>
+                      <circle
+                        className={
+                          isCurrentDay
+                            ? "investment-trend-point-current"
+                            : "investment-trend-point"
+                        }
+                        style={{ fill: league.color }}
+                        cx={x}
+                        cy={y}
+                        r={isCurrentDay ? 3 : 1.5}
+                      />
+                      <circle
+                        className="investment-trend-point-hit-area"
+                        cx={x}
+                        cy={y}
+                        r={5}
+                        onMouseEnter={(event: ReactMouseEvent) =>
+                          setHovered({
+                            league,
+                            row,
+                            clientX: event.clientX,
+                            clientY: event.clientY,
+                          })
+                        }
+                        onMouseLeave={() => setHovered(null)}
+                      />
+                    </g>
+                  );
+                })}
               </g>
             );
           })}
@@ -198,7 +197,7 @@ function InvestmentTrend({
               />
             )}
             <span className="investment-trend-tooltip-rate">
-              {hovered.row.entry.rate}
+              {hovered.row.rate}
             </span>
             <span
               className={`investment-trend-tooltip-change ${changeClass(hovered.row.percentChange)}`}
@@ -207,7 +206,7 @@ function InvestmentTrend({
             </span>
           </div>
           <div className="investment-trend-tooltip-volume">
-            Volume: {hovered.row.entry.volumePrimaryValue.toLocaleString()}
+            Volume: {hovered.row.volumePrimaryValue.toLocaleString()}
           </div>
         </div>
       )}

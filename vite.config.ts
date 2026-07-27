@@ -24,4 +24,12 @@ export default defineConfig({
   // Relative asset paths so dist/index.html can be opened directly via
   // file:// (root-absolute paths 404 outside of an HTTP server).
   base: './',
+  server: {
+    proxy: {
+      // The PHP backend (see backend/), run separately via `npm run backend:dev`.
+      // Same-origin /api/... calls work identically in dev and in the prod-like
+      // `php -S -t dist` setup, so the frontend never needs CORS handling.
+      '/api': 'http://localhost:8080',
+    },
+  },
 })

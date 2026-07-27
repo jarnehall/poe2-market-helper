@@ -1,12 +1,10 @@
-import { useCurrentDay } from "../context/CurrentDayContext";
+import { useFilters } from "../context/FiltersContext";
+import { useMeta } from "../context/MetaContext";
 
 function DayOfLeagueSlider() {
-  const {
-    currentDayOfLeague,
-    setCurrentDayOfLeague,
-    minDayOfLeague,
-    maxDayOfLeague,
-  } = useCurrentDay();
+  const { draft, setDraftCurrentDayOfLeague } = useFilters();
+  const { minDayOfLeague, maxDayOfLeague } = useMeta().bounds;
+  const currentDayOfLeague = draft.currentDayOfLeague;
 
   const range = maxDayOfLeague - minDayOfLeague || 1;
   const percent = ((currentDayOfLeague - minDayOfLeague) / range) * 100;
@@ -28,7 +26,7 @@ function DayOfLeagueSlider() {
         step={1}
         value={currentDayOfLeague}
         onChange={(event) =>
-          setCurrentDayOfLeague(Number(event.target.value))
+          setDraftCurrentDayOfLeague(Number(event.target.value))
         }
         style={{
           background: `linear-gradient(to right, color-mix(in srgb, var(--select) 40%, var(--border)) ${percent}%, var(--border) ${percent}%)`,

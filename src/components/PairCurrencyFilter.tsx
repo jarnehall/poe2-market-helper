@@ -1,9 +1,9 @@
-import { usePairCurrency } from '../context/PairCurrencyContext'
-import { LEAGUES, getPairDisplayName } from '../lib/marketData'
+import { useFilters } from '../context/FiltersContext'
+import { useMeta } from '../context/MetaContext'
 
 function PairCurrencyFilter() {
-  const { pairCurrencies, isPairCurrencySelected, togglePairCurrency } =
-    usePairCurrency()
+  const { pairCurrencies } = useMeta()
+  const { draft, toggleDraftPairCurrency } = useFilters()
 
   return (
     <div className="pair-currency-filter">
@@ -13,11 +13,11 @@ function PairCurrencyFilter() {
         role="group"
         aria-label="Traded against"
       >
-        {pairCurrencies.map((pairId) => {
-          const isSelected = isPairCurrencySelected(pairId)
+        {pairCurrencies.map((pairCurrency) => {
+          const isSelected = draft.pairCurrencies.includes(pairCurrency.id)
           return (
             <button
-              key={pairId}
+              key={pairCurrency.id}
               type="button"
               aria-pressed={isSelected}
               className={
@@ -25,9 +25,9 @@ function PairCurrencyFilter() {
                   ? 'pair-currency-filter-button pair-currency-filter-button-active'
                   : 'pair-currency-filter-button'
               }
-              onClick={() => togglePairCurrency(pairId)}
+              onClick={() => toggleDraftPairCurrency(pairCurrency.id)}
             >
-              {getPairDisplayName(pairId, LEAGUES)}
+              {pairCurrency.name}
             </button>
           )
         })}

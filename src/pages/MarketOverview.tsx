@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import BestInvestment from "../components/BestInvestment";
 import CategoryFilter from "../components/CategoryFilter";
 import ChevronIcon from "../components/ChevronIcon";
@@ -8,58 +8,64 @@ import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
 import PairCurrencyFilter from "../components/PairCurrencyFilter";
-import { useCategory } from "../context/CategoryContext";
-import { useCurrentDay } from "../context/CurrentDayContext";
+import { useFilters } from "../context/FiltersContext";
 import { useLeague } from "../context/LeagueContext";
-import { usePairCurrency } from "../context/PairCurrencyContext";
-import { useTrendWindow } from "../context/TrendWindowContext";
+import { useMeta } from "../context/MetaContext";
+import { fetchBestInvestments } from "../lib/api";
 import { formatIsoDate, formatTimeUntil } from "../lib/format";
-import {
-  CURRENT_LEAGUE_INFO,
-  DEFAULT_BEST_INVESTMENT_COUNT,
-  DEFAULT_DAYS_BACK,
-  DEFAULT_DAYS_FORWARD,
-  DEFAULT_MIN_VOLUME,
-  MAX_BEST_INVESTMENT_COUNT,
-  MAX_VOLUME_FILTER,
-  MIN_BEST_INVESTMENT_COUNT,
-  MIN_VOLUME_FILTER,
-  filterLeaguesByCategories,
-  filterLeaguesByPairCurrencies,
-  getBestInvestmentsForWindow,
-} from "../lib/marketData";
-import { getStoredNumber, setStoredNumber } from "../lib/storage";
+import type { BestInvestment as BestInvestmentEntry } from "../types";
+
+type QueryStatus = "loading" | "error" | "success";
 
 function MarketOverview() {
-  const { currentDayOfLeague, resetCurrentDay } = useCurrentDay();
-  const { selectedLeagues } = useLeague();
-  const { selectedCategories, resetCategories } = useCategory();
-  const { selectedPairCurrencies, resetPairCurrencies } = usePairCurrency();
-  const { daysBack, daysForward, setDaysBack, setDaysForward } =
-    useTrendWindow();
+  const { currentLeague, bounds } = useMeta();
+  const { selectedLeagueIds } = useLeague();
+  const {
+    draft,
+    applied,
+    isDirty,
+    setDraftInvestmentCount,
+    setDraftMinVolume,
+    applyFilters,
+    resetFilters,
+  } = useFilters();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filtersMenuRef = useRef<HTMLDivElement>(null);
-  const filteredLeagues = useMemo(
-    () =>
-      filterLeaguesByPairCurrencies(
-        filterLeaguesByCategories(selectedLeagues, selectedCategories),
-        selectedPairCurrencies,
-      ),
-    [selectedLeagues, selectedCategories, selectedPairCurrencies],
-  );
-  const [investmentCount, setInvestmentCount] = useState(() =>
-    getStoredNumber("investmentCount", DEFAULT_BEST_INVESTMENT_COUNT),
-  );
-  const [minVolume, setMinVolume] = useState(() =>
-    getStoredNumber("minVolume", DEFAULT_MIN_VOLUME),
-  );
 
-  useEffect(
-    () => setStoredNumber("investmentCount", investmentCount),
-    [investmentCount],
-  );
+  const [investments, setInvestments] = useState<BestInvestmentEntry[]>([]);
+  const [status, setStatus] = useState<QueryStatus>("loading");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => setStoredNumber("minVolume", minVolume), [minVolume]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setStatus("loading");
+
+    fetchBestInvestments(
+      {
+        leagues: selectedLeagueIds,
+        categories: applied.categories,
+        pairCurrencies: applied.pairCurrencies,
+        currentDayOfLeague: applied.currentDayOfLeague,
+        daysBack: applied.daysBack,
+        daysForward: applied.daysForward,
+        count: applied.investmentCount,
+        minVolume: applied.minVolume,
+      },
+      controller.signal,
+    )
+      .then((response) => {
+        setInvestments(response.investments);
+        setStatus("success");
+        setErrorMessage(null);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setStatus("error");
+        setErrorMessage(error instanceof Error ? error.message : "Failed to load");
+      });
+
+    return () => controller.abort();
+  }, [applied, selectedLeagueIds]);
 
   useEffect(() => {
     if (!isFiltersOpen) return;
@@ -72,32 +78,20 @@ function MarketOverview() {
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [isFiltersOpen]);
 
-  const resetFilters = () => {
-    resetCategories();
-    resetPairCurrencies();
-    resetCurrentDay();
-    setDaysBack(DEFAULT_DAYS_BACK);
-    setDaysForward(DEFAULT_DAYS_FORWARD);
-    setInvestmentCount(DEFAULT_BEST_INVESTMENT_COUNT);
-    setMinVolume(DEFAULT_MIN_VOLUME);
-  };
-
   const leagueHasStarted =
-    new Date(CURRENT_LEAGUE_INFO.startDate).getTime() <= Date.now();
+    new Date(currentLeague.startDate).getTime() <= Date.now();
 
   return (
     <main className="market-overview">
       <header className="league-banner">
         <h1 className="league-banner-name">
-          {CURRENT_LEAGUE_INFO.name} league{" "}
-          <span className="league-banner-version">
-            {CURRENT_LEAGUE_INFO.version}
-          </span>
+          {currentLeague.name} league{" "}
+          <span className="league-banner-version">{currentLeague.version}</span>
         </h1>
         <p className="league-banner-started">
           {leagueHasStarted
-            ? `Started ${formatIsoDate(CURRENT_LEAGUE_INFO.startDate)}`
-            : `Starts ${formatIsoDate(CURRENT_LEAGUE_INFO.startDate)} (in ${formatTimeUntil(CURRENT_LEAGUE_INFO.startDate)})`}
+            ? `Started ${formatIsoDate(currentLeague.startDate)}`
+            : `Starts ${formatIsoDate(currentLeague.startDate)} (in ${formatTimeUntil(currentLeague.startDate)})`}
         </p>
       </header>
       <LeagueFilter>
@@ -109,6 +103,9 @@ function MarketOverview() {
             onClick={() => setIsFiltersOpen((open) => !open)}
           >
             Filters
+            {isDirty && (
+              <span className="filters-dirty-dot" aria-label="Unapplied filter changes" />
+            )}
             <ChevronIcon open={isFiltersOpen} />
           </button>
           {isFiltersOpen && (
@@ -118,49 +115,66 @@ function MarketOverview() {
               <DayOfLeagueSlider />
               <DaySpanSlider />
               <InvestmentCountSlider
-                count={investmentCount}
-                setCount={setInvestmentCount}
-                minCount={MIN_BEST_INVESTMENT_COUNT}
-                maxCount={MAX_BEST_INVESTMENT_COUNT}
+                count={draft.investmentCount}
+                setCount={setDraftInvestmentCount}
+                minCount={bounds.minBestInvestmentCount}
+                maxCount={bounds.maxBestInvestmentCount}
               />
               <MinVolumeSlider
-                minVolume={minVolume}
-                setMinVolume={setMinVolume}
-                minVolumeBound={MIN_VOLUME_FILTER}
-                maxVolumeBound={MAX_VOLUME_FILTER}
+                minVolume={draft.minVolume}
+                setMinVolume={setDraftMinVolume}
+                minVolumeBound={bounds.minVolumeFilter}
+                maxVolumeBound={bounds.maxVolumeFilter}
               />
-              <button
-                type="button"
-                className="filters-reset-button"
-                onClick={resetFilters}
-              >
-                Reset filters
-              </button>
+              <div className="filters-actions">
+                <button
+                  type="button"
+                  className="filters-apply-button"
+                  disabled={!isDirty}
+                  onClick={applyFilters}
+                >
+                  Apply filters
+                </button>
+                <button
+                  type="button"
+                  className="filters-reset-button"
+                  onClick={resetFilters}
+                >
+                  Reset filters
+                </button>
+              </div>
             </div>
           )}
         </div>
       </LeagueFilter>
-      <BestInvestment
-        title={
-          <>
-            Best investments —{" "}
-            <span className="best-investment-title-day">
-              Day {currentDayOfLeague}
-            </span>{" "}
-            of the league
-          </>
-        }
-        caption={`Based on the rate change from day ${currentDayOfLeague - daysBack} to day ${currentDayOfLeague + daysForward}.`}
-        emptyMessage="No investment is good right now."
-        investments={getBestInvestmentsForWindow(
-          filteredLeagues,
-          investmentCount,
-          currentDayOfLeague,
-          daysBack,
-          daysForward,
-          minVolume,
-        )}
-      />
+      {status === "error" ? (
+        <section className="best-investment best-investment-none">
+          <h2 className="best-investment-title">Best investments</h2>
+          <p className="best-investment-none-message">
+            Couldn&rsquo;t load investments: {errorMessage}
+          </p>
+        </section>
+      ) : (
+        <BestInvestment
+          title={
+            <>
+              Best investments —{" "}
+              <span className="best-investment-title-day">
+                Day {applied.currentDayOfLeague}
+              </span>{" "}
+              of the league
+            </>
+          }
+          caption={`Based on the rate change from day ${applied.currentDayOfLeague - applied.daysBack} to day ${applied.currentDayOfLeague + applied.daysForward}.`}
+          emptyMessage="No investment is good right now."
+          investments={investments}
+          isLoading={status === "loading"}
+          skeletonCount={applied.investmentCount}
+          currentDayOfLeague={applied.currentDayOfLeague}
+          daysBack={applied.daysBack}
+          daysForward={applied.daysForward}
+        />
+      )}
     </main>
   );
 }

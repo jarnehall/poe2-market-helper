@@ -1,12 +1,8 @@
 import type { ReactNode } from "react";
-import { useLeague } from "../context/LeagueContext";
+import { useMeta } from "../context/MetaContext";
 import { changeClass, formatPercentChange } from "../lib/format";
-import {
-  getItemImageUrl,
-  getPairDisplayName,
-  getPoeNinjaUrl,
-  type BestInvestment as BestInvestmentEntry,
-} from "../lib/marketData";
+import { getImageUrl, getPoeNinjaUrl } from "../lib/marketData";
+import type { BestInvestment as BestInvestmentEntry } from "../types";
 import InvestmentTrend from "./InvestmentTrend";
 
 function BestInvestment({
@@ -14,13 +10,60 @@ function BestInvestment({
   caption,
   emptyMessage,
   investments,
+  isLoading,
+  skeletonCount,
+  currentDayOfLeague,
+  daysBack,
+  daysForward,
 }: {
   title: ReactNode;
   caption: string;
   emptyMessage: string;
   investments: BestInvestmentEntry[];
+  isLoading: boolean;
+  skeletonCount: number;
+  currentDayOfLeague: number;
+  daysBack: number;
+  daysForward: number;
 }) {
-  const { selectedLeagues } = useLeague();
+  const { leagues } = useMeta();
+  const leagueById = new Map(leagues.map((league) => [league.id, league]));
+  const fallbackLeagueName = leagues[0]?.name ?? "";
+
+  if (isLoading) {
+    return (
+      <section className="best-investment">
+        <h2 className="best-investment-title">{title}</h2>
+        <ul className="best-investment-grid" aria-hidden="true">
+          {Array.from({ length: skeletonCount }).map((_, index) => (
+            <li
+              key={index}
+              className="best-investment-card best-investment-card-skeleton"
+            >
+              <div className="best-investment-card-header">
+                <div className="skeleton-block skeleton-image" />
+                <div className="best-investment-info">
+                  <span className="best-investment-name-row">
+                    <div className="skeleton-block skeleton-text skeleton-text-name" />
+                    <div className="skeleton-block skeleton-text skeleton-text-badge" />
+                  </span>
+                </div>
+              </div>
+              <div className="skeleton-block skeleton-chart" />
+              <div className="skeleton-block skeleton-text skeleton-text-versus" />
+              <div className="best-investment-footer">
+                <div className="best-investment-change-group">
+                  <div className="skeleton-block skeleton-text skeleton-text-change" />
+                </div>
+                <div className="skeleton-block skeleton-text skeleton-text-link" />
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="best-investment-caption">{caption}</p>
+      </section>
+    );
+  }
 
   if (investments.length === 0) {
     return (
@@ -43,7 +86,7 @@ function BestInvestment({
             <div className="best-investment-card-header">
               <img
                 className="best-investment-image"
-                src={getItemImageUrl(investment.item)}
+                src={getImageUrl(investment.item.image)}
                 alt={investment.item.name}
               />
               <div className="best-investment-info">
@@ -59,10 +102,14 @@ function BestInvestment({
             </div>
             <InvestmentTrend
               leagueHistories={investment.leagueHistories}
-              pairId={investment.pairId}
+              pairName={investment.pairName}
+              pairImage={investment.pairImage}
+              currentDayOfLeague={currentDayOfLeague}
+              daysBack={daysBack}
+              daysForward={daysForward}
             />
             <span className="best-investment-versus">
-              {getPairDisplayName(investment.pairId, selectedLeagues)}
+              {investment.pairName}
             </span>
             <div className="best-investment-footer">
               <div className="best-investment-change-group">
@@ -74,11 +121,11 @@ function BestInvestment({
                 {investment.leagueChanges.length > 1 && (
                   <span className="best-investment-change-breakdown">
                     {investment.leagueChanges.map(
-                      ({ league, percentChange }) => (
+                      ({ leagueId, percentChange }) => (
                         <span
-                          key={league.id}
+                          key={leagueId}
                           className="best-investment-change-breakdown-item"
-                          style={{ color: league.color }}
+                          style={{ color: leagueById.get(leagueId)?.color }}
                         >
                           {formatPercentChange(percentChange)}
                         </span>
@@ -89,7 +136,7 @@ function BestInvestment({
               </div>
               <a
                 className="best-investment-poe-ninja-link"
-                href={getPoeNinjaUrl(investment.item)}
+                href={getPoeNinjaUrl(investment.item, fallbackLeagueName)}
                 target="_blank"
                 rel="noreferrer"
               >

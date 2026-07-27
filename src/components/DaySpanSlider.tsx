@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { useTrendWindow } from "../context/TrendWindowContext";
+import { useFilters } from "../context/FiltersContext";
 
 type Handle = "before" | "after";
 
@@ -10,8 +10,14 @@ type Handle = "before" | "after";
 // always >= 0), there's no overlapping-thumb ambiguity to resolve, unlike
 // the old single three-handle slider this replaced.
 function DaySpanSlider() {
-  const { daysBack, daysForward, setDaysBack, setDaysForward, maxDaysBack, maxDaysForward } =
-    useTrendWindow();
+  const {
+    draft,
+    setDraftDaysBack: setDaysBack,
+    setDraftDaysForward: setDaysForward,
+    maxDraftDaysBack: maxDaysBack,
+    maxDraftDaysForward: maxDaysForward,
+  } = useFilters();
+  const { daysBack, daysForward } = draft;
   const trackRef = useRef<HTMLDivElement>(null);
   const [draggingHandle, setDraggingHandle] = useState<Handle | null>(null);
 

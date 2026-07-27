@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { DEFAULT_LEAGUE_ID, LEAGUES } from '../lib/marketData'
-import type { League } from '../lib/marketData'
 import { getStoredStringArray, setStoredStringArray } from '../lib/storage'
+import type { LeagueMeta } from '../types'
+import { useMeta } from './MetaContext'
 
 interface LeagueContextValue {
-  leagues: League[]
-  selectedLeagues: League[]
+  leagues: LeagueMeta[]
+  selectedLeagueIds: string[]
+  selectedLeagues: LeagueMeta[]
   isLeagueSelected: (leagueId: string) => boolean
   toggleLeague: (leagueId: string) => void
 }
@@ -14,8 +15,10 @@ interface LeagueContextValue {
 const LeagueContext = createContext<LeagueContextValue | null>(null)
 
 export function LeagueProvider({ children }: { children: ReactNode }) {
+  const { leagues } = useMeta()
+
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>(() =>
-    getStoredStringArray('selectedLeagueIds', [DEFAULT_LEAGUE_ID]),
+    getStoredStringArray('selectedLeagueIds', leagues.length > 0 ? [leagues[0].id] : []),
   )
 
   useEffect(
@@ -35,19 +38,19 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
   }
 
   const selectedLeagues = useMemo(
-    () => LEAGUES.filter((league) => selectedLeagueIds.includes(league.id)),
-    [selectedLeagueIds],
+    () => leagues.filter((league) => selectedLeagueIds.includes(league.id)),
+    [leagues, selectedLeagueIds],
   )
 
   const value = useMemo<LeagueContextValue>(
     () => ({
-      leagues: LEAGUES,
+      leagues,
+      selectedLeagueIds,
       selectedLeagues,
-      isLeagueSelected: (leagueId: string) =>
-        selectedLeagueIds.includes(leagueId),
+      isLeagueSelected: (leagueId: string) => selectedLeagueIds.includes(leagueId),
       toggleLeague,
     }),
-    [selectedLeagues, selectedLeagueIds],
+    [leagues, selectedLeagues, selectedLeagueIds],
   )
 
   return (
