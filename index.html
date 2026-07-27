@@ -33,16 +33,13 @@
     />
     <meta name="twitter:image" content="https://poe2.jarnehall.se/og-image.jpg" />
     <!-- Mirrors src/index.css's --bg and body::before so the page looks the
-         same before the app's stylesheet and data have loaded. Keep in sync. -->
+         same before the app's stylesheet and data have loaded. Keep in sync.
+         Always dark — this app doesn't have a light mode, regardless of the
+         OS/browser color-scheme preference. -->
     <style>
       :root {
-        --bg: #f7f2e7;
-        color-scheme: light dark;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #0d0d0c;
-        }
+        --bg: #0d0d0c;
+        color-scheme: dark;
       }
       html {
         background: var(--bg);
@@ -83,15 +80,9 @@
         width: 48px;
         height: 48px;
         border-radius: 50%;
-        border: 4px solid rgba(156, 122, 31, 0.25);
-        border-top-color: #9c7a1f;
+        border: 4px solid rgba(201, 162, 39, 0.2);
+        border-top-color: #c9a227;
         animation: loading-spinner-spin 0.8s linear infinite;
-      }
-      @media (prefers-color-scheme: dark) {
-        .loading-spinner::after {
-          border-color: rgba(201, 162, 39, 0.2);
-          border-top-color: #c9a227;
-        }
       }
       @keyframes loading-spinner-spin {
         to {

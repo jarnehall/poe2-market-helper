@@ -56,7 +56,10 @@ function BestInvestment({
                 </span>
               </div>
             </div>
-            <InvestmentTrend leagueHistories={investment.leagueHistories} />
+            <InvestmentTrend
+              leagueHistories={investment.leagueHistories}
+              pairId={investment.pairId}
+            />
             <span className="best-investment-versus">
               {getPairDisplayName(investment.pairId, selectedLeagues)}
             </span>

@@ -1,9 +1,15 @@
+import { useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCurrentDay } from "../context/CurrentDayContext";
 import { useTrendWindow } from "../context/TrendWindowContext";
 import { formatRate } from "../lib/format";
 import {
   getAllHistoryRows,
   getHistoryRowsInWindow,
+  getPairDisplayName,
+  getPairImageUrl,
+  type HistoryRow,
+  type League,
   type LeagueHistory,
 } from "../lib/marketData";
 
@@ -12,13 +18,23 @@ const HEIGHT = 50;
 const PADDING = 3;
 const PADDING_LEFT = 16;
 
+interface HoveredPoint {
+  league: League;
+  row: HistoryRow;
+  clientX: number;
+  clientY: number;
+}
+
 function InvestmentTrend({
   leagueHistories,
+  pairId,
 }: {
   leagueHistories: LeagueHistory[];
+  pairId: string;
 }) {
   const { currentDayOfLeague } = useCurrentDay();
   const { daysBack, daysForward } = useTrendWindow();
+  const [hovered, setHovered] = useState<HoveredPoint | null>(null);
 
   const startDay = currentDayOfLeague - daysBack;
   const endDay = currentDayOfLeague + daysForward;
@@ -60,80 +76,130 @@ function InvestmentTrend({
           (rate, index, rates) => rates.indexOf(rate) === index,
         );
 
-  return (
-    <svg
-      className="investment-trend"
-      width={WIDTH}
-      height={HEIGHT}
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      role="img"
-      aria-label={`Rate trend for the days around day ${startDay} to day ${endDay}`}
-    >
-      <g className="investment-trend-axis">
-        {gridRates.map((rate) => (
-          <g key={rate}>
-            <line
-              className="investment-trend-grid-line"
-              x1={16}
-              x2={WIDTH - PADDING}
-              y1={yForRate(rate)}
-              y2={yForRate(rate)}
-            />
-            <text
-              className="investment-trend-grid-label"
-              x={12}
-              y={yForRate(rate)}
-              textAnchor="end"
-              dominantBaseline="middle"
-            >
-              {formatRate(rate)}
-            </text>
-          </g>
-        ))}
-      </g>
-      {perLeagueRows.map(({ league, rows }) => {
-        const points = rows.map((row) => ({
-          x: xForDay(row.dayOfLeague),
-          y: yForRate(row.entry.rate),
-          row,
-        }));
-        const linePath = points
-          .map(
-            (point, index) =>
-              `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`,
-          )
-          .join(" ");
+  const leagues = leagueHistories.map(({ league }) => league);
+  const pairImageUrl = getPairImageUrl(pairId, leagues);
+  const pairName = getPairDisplayName(pairId, leagues);
 
-        return (
-          <g key={league.id}>
-            <path
-              className="investment-trend-line"
-              style={{ stroke: league.color }}
-              d={linePath}
-              fill="none"
-            />
-            {points.map(({ x, y, row }) => (
-              <circle
-                key={row.dayOfLeague}
-                className={
-                  row.isCurrentDay
-                    ? "investment-trend-point-current"
-                    : "investment-trend-point"
-                }
-                style={{ fill: league.color }}
-                cx={x}
-                cy={y}
-                r={row.isCurrentDay ? 3 : 1.5}
+  return (
+    <div className="investment-trend-wrap">
+      <svg
+        className="investment-trend"
+        width={WIDTH}
+        height={HEIGHT}
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        role="img"
+        aria-label={`Rate trend for the days around day ${startDay} to day ${endDay}`}
+      >
+        <g className="investment-trend-axis">
+          {gridRates.map((rate) => (
+            <g key={rate}>
+              <line
+                className="investment-trend-grid-line"
+                x1={16}
+                x2={WIDTH - PADDING}
+                y1={yForRate(rate)}
+                y2={yForRate(rate)}
+              />
+              <text
+                className="investment-trend-grid-label"
+                x={12}
+                y={yForRate(rate)}
+                textAnchor="end"
+                dominantBaseline="middle"
               >
-                <title>
-                  {`Day ${row.dayOfLeague}: ${row.entry.rate} (Volume: ${row.entry.volumePrimaryValue.toLocaleString()})`}
-                </title>
-              </circle>
-            ))}
-          </g>
-        );
-      })}
-    </svg>
+                {formatRate(rate)}
+              </text>
+            </g>
+          ))}
+        </g>
+        {perLeagueRows.map(({ league, rows }) => {
+          const points = rows.map((row) => ({
+            x: xForDay(row.dayOfLeague),
+            y: yForRate(row.entry.rate),
+            row,
+          }));
+          const linePath = points
+            .map(
+              (point, index) =>
+                `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`,
+            )
+            .join(" ");
+
+          return (
+            <g key={league.id}>
+              <path
+                className="investment-trend-line"
+                style={{ stroke: league.color }}
+                d={linePath}
+                fill="none"
+              />
+              {points.map(({ x, y, row }) => (
+                <g key={row.dayOfLeague}>
+                  <circle
+                    className={
+                      row.isCurrentDay
+                        ? "investment-trend-point-current"
+                        : "investment-trend-point"
+                    }
+                    style={{ fill: league.color }}
+                    cx={x}
+                    cy={y}
+                    r={row.isCurrentDay ? 3 : 1.5}
+                  />
+                  <circle
+                    className="investment-trend-point-hit-area"
+                    cx={x}
+                    cy={y}
+                    r={5}
+                    onMouseEnter={(event: ReactMouseEvent) =>
+                      setHovered({
+                        league,
+                        row,
+                        clientX: event.clientX,
+                        clientY: event.clientY,
+                      })
+                    }
+                    onMouseLeave={() => setHovered(null)}
+                  />
+                </g>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      {hovered && (
+        <div
+          className="investment-trend-tooltip"
+          style={{
+            left: hovered.clientX,
+            top: hovered.clientY,
+          }}
+        >
+          <div
+            className="investment-trend-tooltip-league"
+            style={{ color: hovered.league.color }}
+          >
+            {hovered.league.name}
+          </div>
+          <div className="investment-trend-tooltip-day">
+            Day {hovered.row.dayOfLeague}
+          </div>
+          <div className="investment-trend-tooltip-row">
+            {pairImageUrl && (
+              <img
+                className="investment-trend-tooltip-icon"
+                src={pairImageUrl}
+                alt={pairName}
+              />
+            )}
+            <span>{hovered.row.entry.rate}</span>
+          </div>
+          <div className="investment-trend-tooltip-row investment-trend-tooltip-volume">
+            Volume: {hovered.row.entry.volumePrimaryValue.toLocaleString()}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

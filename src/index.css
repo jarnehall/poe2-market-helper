@@ -1,38 +1,26 @@
+/* Always dark, regardless of the OS/browser color-scheme preference — this
+   app doesn't have a light mode. */
 :root {
-  --text: #5b5347;
-  --text-h: #2a2015;
-  --bg: #f7f2e7;
-  --border: #ddd0b0;
-  --row-alt: #efe6d3;
-  --accent: #9c7a1f;
-  --accent-bg: rgba(156, 122, 31, 0.12);
-  --gain: #2f7a1f;
-  --loss: #a13324;
+  --text: #a8a8a8;
+  --text-h: #f0e2b6;
+  --bg: #0d0d0c;
+  --border: #3a332a;
+  --row-alt: #171512;
+  --accent: #c9a227;
+  --accent-bg: rgba(201, 162, 39, 0.14);
+  --gain: #5fae4d;
+  --loss: #c0392b;
 
   --sans: system-ui, "Segoe UI", Roboto, sans-serif;
 
   font: 16px/145% var(--sans);
-  color-scheme: light dark;
+  color-scheme: dark;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #a8a8a8;
-    --text-h: #f0e2b6;
-    --bg: #0d0d0c;
-    --border: #3a332a;
-    --row-alt: #171512;
-    --accent: #c9a227;
-    --accent-bg: rgba(201, 162, 39, 0.14);
-    --gain: #5fae4d;
-    --loss: #c0392b;
-  }
 }
 
 body {

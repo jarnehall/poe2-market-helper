@@ -422,7 +422,7 @@
 
 .best-investment-card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -484,11 +484,69 @@
   text-decoration: underline;
 }
 
+.investment-trend-wrap {
+  position: relative;
+}
+
 .investment-trend {
   display: block;
   width: 100%;
   height: auto;
   overflow: visible;
+}
+
+.investment-trend-point-hit-area {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.investment-trend-tooltip {
+  position: fixed;
+  z-index: 100;
+  transform: translate(-50%, calc(-100% - 12px));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(16, 20, 34, 0.97);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.investment-trend-tooltip-league {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.investment-trend-tooltip-day {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f5ecd8;
+}
+
+.investment-trend-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f5ecd8;
+}
+
+.investment-trend-tooltip-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.investment-trend-tooltip-volume {
+  font-size: 12px;
+  font-weight: 500;
+  color: #c9c2ab;
 }
 
 .investment-trend-line {
@@ -671,7 +729,7 @@
 }
 
 .category-badge {
-  padding: 0 8px;
+  padding: 4px 8px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
