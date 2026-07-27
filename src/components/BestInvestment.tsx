@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useLeague } from "../context/LeagueContext";
 import { changeClass, formatPercentChange } from "../lib/format";
 import {
@@ -14,7 +15,7 @@ function BestInvestment({
   emptyMessage,
   investments,
 }: {
-  title: string;
+  title: ReactNode;
   caption: string;
   emptyMessage: string;
   investments: BestInvestmentEntry[];
@@ -64,11 +65,28 @@ function BestInvestment({
               {getPairDisplayName(investment.pairId, selectedLeagues)}
             </span>
             <div className="best-investment-footer">
-              <span
-                className={`best-investment-change ${changeClass(investment.percentChange)}`}
-              >
-                {formatPercentChange(investment.percentChange)}
-              </span>
+              <div className="best-investment-change-group">
+                <span
+                  className={`best-investment-change ${changeClass(investment.percentChange)}`}
+                >
+                  {formatPercentChange(investment.percentChange)}
+                </span>
+                {investment.leagueChanges.length > 1 && (
+                  <span className="best-investment-change-breakdown">
+                    {investment.leagueChanges.map(
+                      ({ league, percentChange }) => (
+                        <span
+                          key={league.id}
+                          className="best-investment-change-breakdown-item"
+                          style={{ color: league.color }}
+                        >
+                          {formatPercentChange(percentChange)}
+                        </span>
+                      ),
+                    )}
+                  </span>
+                )}
+              </div>
               <a
                 className="best-investment-poe-ninja-link"
                 href={getPoeNinjaUrl(investment.item)}

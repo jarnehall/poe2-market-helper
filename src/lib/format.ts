@@ -35,7 +35,15 @@ export function formatTimeUntil(targetTimestamp: string): string {
 export function formatPercentChange(percentChange: number | null): string {
   if (percentChange === null) return '—'
   const sign = percentChange > 0 ? '+' : ''
-  return `${sign}${percentChange.toFixed(2)}%`
+  const magnitude = Math.abs(percentChange)
+  const formatted =
+    magnitude > 1000
+      ? percentChange.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : percentChange.toFixed(2)
+  return `${sign}${formatted}%`
 }
 
 export function changeClass(percentChange: number | null): string {

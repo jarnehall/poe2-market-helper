@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCurrentDay } from "../context/CurrentDayContext";
 import { useTrendWindow } from "../context/TrendWindowContext";
-import { formatRate } from "../lib/format";
+import { changeClass, formatPercentChange, formatRate } from "../lib/format";
 import {
   getAllHistoryRows,
   getHistoryRowsInWindow,
@@ -112,60 +112,63 @@ function InvestmentTrend({
             </g>
           ))}
         </g>
-        {perLeagueRows.map(({ league, rows }) => {
-          const points = rows.map((row) => ({
-            x: xForDay(row.dayOfLeague),
-            y: yForRate(row.entry.rate),
-            row,
-          }));
-          const linePath = points
-            .map(
-              (point, index) =>
-                `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`,
-            )
-            .join(" ");
+        {perLeagueRows
+          .slice()
+          .reverse()
+          .map(({ league, rows }) => {
+            const points = rows.map((row) => ({
+              x: xForDay(row.dayOfLeague),
+              y: yForRate(row.entry.rate),
+              row,
+            }));
+            const linePath = points
+              .map(
+                (point, index) =>
+                  `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`,
+              )
+              .join(" ");
 
-          return (
-            <g key={league.id}>
-              <path
-                className="investment-trend-line"
-                style={{ stroke: league.color }}
-                d={linePath}
-                fill="none"
-              />
-              {points.map(({ x, y, row }) => (
-                <g key={row.dayOfLeague}>
-                  <circle
-                    className={
-                      row.isCurrentDay
-                        ? "investment-trend-point-current"
-                        : "investment-trend-point"
-                    }
-                    style={{ fill: league.color }}
-                    cx={x}
-                    cy={y}
-                    r={row.isCurrentDay ? 3 : 1.5}
-                  />
-                  <circle
-                    className="investment-trend-point-hit-area"
-                    cx={x}
-                    cy={y}
-                    r={5}
-                    onMouseEnter={(event: ReactMouseEvent) =>
-                      setHovered({
-                        league,
-                        row,
-                        clientX: event.clientX,
-                        clientY: event.clientY,
-                      })
-                    }
-                    onMouseLeave={() => setHovered(null)}
-                  />
-                </g>
-              ))}
-            </g>
-          );
-        })}
+            return (
+              <g key={league.id}>
+                <path
+                  className="investment-trend-line"
+                  style={{ stroke: league.color }}
+                  d={linePath}
+                  fill="none"
+                />
+                {points.map(({ x, y, row }) => (
+                  <g key={row.dayOfLeague}>
+                    <circle
+                      className={
+                        row.isCurrentDay
+                          ? "investment-trend-point-current"
+                          : "investment-trend-point"
+                      }
+                      style={{ fill: league.color }}
+                      cx={x}
+                      cy={y}
+                      r={row.isCurrentDay ? 3 : 1.5}
+                    />
+                    <circle
+                      className="investment-trend-point-hit-area"
+                      cx={x}
+                      cy={y}
+                      r={5}
+                      onMouseEnter={(event: ReactMouseEvent) =>
+                        setHovered({
+                          league,
+                          row,
+                          clientX: event.clientX,
+                          clientY: event.clientY,
+                        })
+                      }
+                      onMouseLeave={() => setHovered(null)}
+                    />
+                  </g>
+                ))}
+              </g>
+            );
+          })}
       </svg>
       {hovered && (
         <div
@@ -175,16 +178,18 @@ function InvestmentTrend({
             top: hovered.clientY,
           }}
         >
-          <div
-            className="investment-trend-tooltip-league"
-            style={{ color: hovered.league.color }}
-          >
-            {hovered.league.name}
+          <div className="investment-trend-tooltip-header">
+            <span
+              className="investment-trend-tooltip-league"
+              style={{ color: hovered.league.color }}
+            >
+              {hovered.league.name}
+            </span>
+            <span className="investment-trend-tooltip-day">
+              Day {hovered.row.dayOfLeague}
+            </span>
           </div>
-          <div className="investment-trend-tooltip-day">
-            Day {hovered.row.dayOfLeague}
-          </div>
-          <div className="investment-trend-tooltip-row">
+          <div className="investment-trend-tooltip-value-row">
             {pairImageUrl && (
               <img
                 className="investment-trend-tooltip-icon"
@@ -192,9 +197,16 @@ function InvestmentTrend({
                 alt={pairName}
               />
             )}
-            <span>{hovered.row.entry.rate}</span>
+            <span className="investment-trend-tooltip-rate">
+              {hovered.row.entry.rate}
+            </span>
+            <span
+              className={`investment-trend-tooltip-change ${changeClass(hovered.row.percentChange)}`}
+            >
+              {formatPercentChange(hovered.row.percentChange)}
+            </span>
           </div>
-          <div className="investment-trend-tooltip-row investment-trend-tooltip-volume">
+          <div className="investment-trend-tooltip-volume">
             Volume: {hovered.row.entry.volumePrimaryValue.toLocaleString()}
           </div>
         </div>

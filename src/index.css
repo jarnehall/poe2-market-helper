@@ -1,15 +1,37 @@
-/* Always dark, regardless of the OS/browser color-scheme preference — this
-   app doesn't have a light mode. */
+/* Design tokens. Always dark — this app doesn't have a light mode,
+   regardless of the OS/browser color-scheme preference.
+
+   Layering: --bg (page) < --surface (cards, idle controls)
+   < --surface-2 (things that float above cards: dropdowns, tooltips,
+   hover states). Keeping every panel on this same three-step blue-grey
+   scale, instead of each component picking its own ad-hoc translucent
+   black, is what makes the card grid, the filters dropdown, and the
+   graph tooltip read as one system. Gold stays as the one warm accent
+   against the cool neutrals — the currency/highlight color, not the
+   base palette. Selection state (active filter chips, slider fills)
+   uses --select, a blue in the same family as the neutrals, instead —
+   keeping gold reserved for currency values and links. */
 :root {
-  --text: #a8a8a8;
-  --text-h: #f0e2b6;
-  --bg: #0d0d0c;
-  --border: #3a332a;
-  --row-alt: #171512;
+  --bg: #0b0d11;
+  --surface: #151920;
+  --surface-2: #1e242c;
+  --border: #333c46;
+  --row-alt: var(--surface-2);
+
+  --text: #98a3ad;
+  --text-h: #e9eef3;
+  --ink: #11151a;
+
   --accent: #c9a227;
   --accent-bg: rgba(201, 162, 39, 0.14);
+  --select: #4a90d9;
+  --select-bg: rgba(74, 144, 217, 0.14);
   --gain: #5fae4d;
   --loss: #c0392b;
+
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5);
 
   --sans: system-ui, "Segoe UI", Roboto, sans-serif;
 
@@ -25,27 +47,12 @@
 
 body {
   margin: 0;
-  position: relative;
-}
-
-body::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 500px;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to bottom, transparent 0%, var(--bg) 90%), url("/bg.webp");
-  background-repeat: no-repeat, no-repeat;
-  background-position:
-    top center,
-    top center;
-  background-size:
-    100% 100%,
-    cover;
+  min-height: 100vh;
+  /* A soft glow standing in for the old hero-art background — depth
+     without a busy photo competing with the content. */
+  background:
+    radial-gradient(1100px 480px at 50% -8%, rgba(90, 120, 150, 0.12), transparent 65%),
+    var(--bg);
 }
 
 #root {

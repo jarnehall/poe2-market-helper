@@ -32,13 +32,14 @@
       content="Track the best currency trades in Path of Exile 2 — live rates, trends, and volume across every league."
     />
     <meta name="twitter:image" content="https://poe2.jarnehall.se/og-image.jpg" />
-    <!-- Mirrors src/index.css's --bg and body::before so the page looks the
-         same before the app's stylesheet and data have loaded. Keep in sync.
-         Always dark — this app doesn't have a light mode, regardless of the
-         OS/browser color-scheme preference. -->
+    <!-- Mirrors src/index.css's --bg, --select, and body background so the
+         page looks the same before the app's stylesheet and data have
+         loaded. Keep in sync. Always dark — this app doesn't have a light
+         mode, regardless of the OS/browser color-scheme preference. -->
     <style>
       :root {
-        --bg: #0d0d0c;
+        --bg: #0b0d11;
+        --select: #4a90d9;
         color-scheme: dark;
       }
       html {
@@ -46,27 +47,10 @@
       }
       body {
         margin: 0;
-        position: relative;
-      }
-      body::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 500px;
-        z-index: -1;
-        pointer-events: none;
-        background-image:
-          linear-gradient(to bottom, transparent 0%, var(--bg) 90%),
-          url("/bg.webp");
-        background-repeat: no-repeat, no-repeat;
-        background-position:
-          top center,
-          top center;
-        background-size:
-          100% 100%,
-          cover;
+        min-height: 100vh;
+        background:
+          radial-gradient(1100px 480px at 50% -8%, rgba(90, 120, 150, 0.12), transparent 65%),
+          var(--bg);
       }
       .loading-spinner {
         position: fixed;
@@ -80,8 +64,8 @@
         width: 48px;
         height: 48px;
         border-radius: 50%;
-        border: 4px solid rgba(201, 162, 39, 0.2);
-        border-top-color: #c9a227;
+        border: 4px solid rgba(74, 144, 217, 0.2);
+        border-top-color: var(--select);
         animation: loading-spinner-spin 0.8s linear infinite;
       }
       @keyframes loading-spinner-spin {

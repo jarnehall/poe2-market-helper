@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import BestInvestment from "../components/BestInvestment";
 import CategoryFilter from "../components/CategoryFilter";
+import ChevronIcon from "../components/ChevronIcon";
+import DayOfLeagueSlider from "../components/DayOfLeagueSlider";
+import DaySpanSlider from "../components/DaySpanSlider";
 import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
 import PairCurrencyFilter from "../components/PairCurrencyFilter";
-import WindowSlider from "../components/WindowSlider";
 import { useCategory } from "../context/CategoryContext";
 import { useCurrentDay } from "../context/CurrentDayContext";
 import { useLeague } from "../context/LeagueContext";
@@ -106,13 +108,15 @@ function MarketOverview() {
             aria-expanded={isFiltersOpen}
             onClick={() => setIsFiltersOpen((open) => !open)}
           >
-            Filters {isFiltersOpen ? "▲" : "▼"}
+            Filters
+            <ChevronIcon open={isFiltersOpen} />
           </button>
           {isFiltersOpen && (
             <div className="filters-dropdown">
               <CategoryFilter />
               <PairCurrencyFilter />
-              <WindowSlider />
+              <DayOfLeagueSlider />
+              <DaySpanSlider />
               <InvestmentCountSlider
                 count={investmentCount}
                 setCount={setInvestmentCount}
@@ -137,7 +141,15 @@ function MarketOverview() {
         </div>
       </LeagueFilter>
       <BestInvestment
-        title={`Best investments — Day ${currentDayOfLeague} of the league`}
+        title={
+          <>
+            Best investments —{" "}
+            <span className="best-investment-title-day">
+              Day {currentDayOfLeague}
+            </span>{" "}
+            of the league
+          </>
+        }
         caption={`Based on the rate change from day ${currentDayOfLeague - daysBack} to day ${currentDayOfLeague + daysForward}.`}
         emptyMessage="No investment is good right now."
         investments={getBestInvestmentsForWindow(

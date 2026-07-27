@@ -30,7 +30,7 @@ function InvestmentCountSlider({
         value={count}
         onChange={(event) => setCount(Number(event.target.value))}
         style={{
-          background: `linear-gradient(to right, color-mix(in srgb, var(--accent) 40%, var(--row-alt)) ${percent}%, var(--row-alt) ${percent}%)`,
+          background: `linear-gradient(to right, color-mix(in srgb, var(--select) 40%, var(--border)) ${percent}%, var(--border) ${percent}%)`,
         }}
       />
     </div>

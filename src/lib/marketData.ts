@@ -72,7 +72,7 @@ export const LEAGUES: League[] = [
   {
     id: "rise-of-the-abyssal",
     name: "Rise of the Abyssal",
-    color: "#04c514",
+    color: "#3fae5f",
     itemEntries: mergeItemEntryModules(riseOfTheAbyssalModules),
   },
 ];
@@ -533,10 +533,16 @@ export function getSortedPairIdsByAverageChange(
   });
 }
 
+export interface LeagueChange {
+  league: League;
+  percentChange: number;
+}
+
 export interface BestInvestment {
   item: MarketItem;
   pairId: string;
   percentChange: number;
+  leagueChanges: LeagueChange[];
   leagueHistories: LeagueHistory[];
 }
 
@@ -569,10 +575,15 @@ function getBestInvestmentsBy(
       const volume = average(volumes);
       if (volume === null || volume < minVolume) continue;
 
-      const changes = leagueHistories
-        .map(({ history }) => getPercentChange(history, currentDayOfLeague))
-        .filter((change): change is number => change !== null);
-      const percentChange = average(changes);
+      const leagueChanges = leagueHistories
+        .map(({ league, history }) => {
+          const change = getPercentChange(history, currentDayOfLeague);
+          return change === null ? null : { league, percentChange: change };
+        })
+        .filter((entry): entry is LeagueChange => entry !== null);
+      const percentChange = average(
+        leagueChanges.map((entry) => entry.percentChange),
+      );
       if (percentChange === null || percentChange <= 0) continue;
 
       const existing = bestByItemId.get(item.id);
@@ -581,6 +592,7 @@ function getBestInvestmentsBy(
           item,
           pairId,
           percentChange,
+          leagueChanges,
           leagueHistories,
         });
       }
