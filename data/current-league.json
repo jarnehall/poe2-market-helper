@@ -1,5 +1,7 @@
 {
-  "name": "TBD",
-  "version": "0.5.5",
-  "startDate": "2026-07-24T00:00:00Z"
+  "name": "Runes of Aldur",
+  "id": "runes-of-aldur",
+  "version": "0.5.x",
+  "startDate": "2026-05-29T20:00:00Z",
+  "color": "#b5a850"
 }

@@ -35,38 +35,82 @@ function closeTo(?float $actual, ?float $expected, float $tolerance = 0.01): boo
 
 // --- getAllHistoryRows: day-of-league rounding + day-over-day percent change ---
 
+$leagueStart = '2026-01-01T00:00:00Z';
+
 $history = [
     ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 110.0, 'volumePrimaryValue' => 100],
     ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
     ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 90.0, 'volumePrimaryValue' => 100],
 ];
 
-$rows = MarketData::getAllHistoryRows($history, currentDayOfLeague: 3);
+$rows = MarketData::getAllHistoryRows($history, startDate: $leagueStart, currentDayOfLeague: 3);
 $byDay = [];
 foreach ($rows as $row) {
     $byDay[$row['dayOfLeague']] = $row;
 }
 
 check(count($rows) === 3, 'getAllHistoryRows returns one row per history entry');
-check(isset($byDay[1], $byDay[3], $byDay[5]), 'day-of-league is computed from elapsed days vs. the oldest entry (1, 3, 5 — not 1, 2, 3)');
+check(isset($byDay[1], $byDay[3], $byDay[5]), 'day-of-league is computed from elapsed days vs. the league startDate (1, 3, 5 — not 1, 2, 3)');
 check($byDay[1]['percentChange'] === null, 'the oldest row has no previous entry, so percentChange is null');
 check(closeTo($byDay[3]['percentChange'], 11.111), 'day 3 percent change vs. day 1 (100 vs 90) is ~11.11%');
 check(closeTo($byDay[5]['percentChange'], 10.0), 'day 5 percent change vs. day 3 (110 vs 100) is 10%');
 check($byDay[3]['isCurrentDay'] === true && $byDay[1]['isCurrentDay'] === false, 'isCurrentDay only true for the requested day');
 
+// --- getAllHistoryRows: dayOfLeague is anchored to the league's startDate, ---
+// --- NEVER to this pair's own oldest entry (the actual bug being fixed)   ---
+
+$lateHistory = [
+    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 50.0, 'volumePrimaryValue' => 100],
+    ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 40.0, 'volumePrimaryValue' => 100],
+];
+// This pair's own oldest entry is Jan 2 — a day after the league (Jan 1)
+// actually started, e.g. because nobody traded it yet on day 1.
+$lateRows = MarketData::getAllHistoryRows($lateHistory, startDate: $leagueStart, currentDayOfLeague: 3);
+$lateByDay = [];
+foreach ($lateRows as $row) {
+    $lateByDay[$row['dayOfLeague']] = $row;
+}
+
+check(
+    !isset($lateByDay[1]) && isset($lateByDay[2], $lateByDay[5]),
+    'a pair with no trades yet on the league\'s real day 1 has no day-1 row at all, and its real entries land on day 2 and day 5 — not day 1 and day 4, which anchoring to its own oldest entry would (wrongly) give',
+);
+
+// --- getAllHistoryRows: a startDate with a real (non-midnight) launch time ---
+// --- treats the NEXT midnight as day 1, not its own calendar day          ---
+
+// A league that launched at 19:00Z on Jan 1 — no trading (so no history
+// snapshot) can exist before that moment, so the first midnight snapshot
+// that can possibly reflect real data is Jan 2 00:00, not Jan 1's own
+// midnight (which is *before* the league even started).
+$realLaunchTimeStart = '2026-01-01T19:00:00Z';
+$lateLaunchHistory = [
+    ['timestamp' => '2026-01-04T00:00:00Z', 'rate' => 130.0, 'volumePrimaryValue' => 100],
+    ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
+];
+$lateLaunchRows = MarketData::getAllHistoryRows($lateLaunchHistory, startDate: $realLaunchTimeStart, currentDayOfLeague: 1);
+$lateLaunchByDay = [];
+foreach ($lateLaunchRows as $row) {
+    $lateLaunchByDay[$row['dayOfLeague']] = $row;
+}
+check(
+    isset($lateLaunchByDay[1], $lateLaunchByDay[3]),
+    'a startDate with a non-midnight launch time (19:00Z on Jan 1) gives day 1 to the Jan 2 00:00 entry (the first midnight after launch) and day 3 to Jan 4 — not day 0/2, which comparing against Jan 1\'s own midnight would (wrongly) give',
+);
+
 // --- getWindowPercentChange: falls back to currentDayOfLeague when there's no data far enough back ---
 
-$fallbackChange = MarketData::getWindowPercentChange($history, currentDayOfLeague: 3, daysBack: 2, daysForward: 2);
+$fallbackChange = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 3, daysBack: 2, daysForward: 2);
 // currentDayOfLeague(3) - daysBack(2) = day 1, which DOES exist here, so this
 // first case exercises the normal (non-fallback) path: day1(90) -> day5(110).
 check(closeTo($fallbackChange, 22.222), 'window change day1->day5 (90 to 110) is ~22.22%');
 
-$noDataFarBack = MarketData::getWindowPercentChange($history, currentDayOfLeague: 3, daysBack: 5, daysForward: 2);
+$noDataFarBack = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 3, daysBack: 5, daysForward: 2);
 // currentDayOfLeague(3) - daysBack(5) = day -2, which doesn't exist, so this
 // falls back to day 3 (100) itself as the start -> day5 (110).
 check(closeTo($noDataFarBack, 10.0), 'falls back to currentDayOfLeague as the start when daysBack overshoots available history');
 
-$noEndData = MarketData::getWindowPercentChange($history, currentDayOfLeague: 3, daysBack: 2, daysForward: 100);
+$noEndData = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 3, daysBack: 2, daysForward: 100);
 check($noEndData === null, 'returns null when the window end day has no data at all');
 
 // --- getBestInvestmentsForWindow: keeps only the best-performing pair per item ---
@@ -75,6 +119,7 @@ $league = [
     'id' => 'test-league',
     'name' => 'Test League',
     'color' => '#000000',
+    'startDate' => $leagueStart,
     'itemEntries' => [[
         'item' => ['id' => 'chaos', 'name' => 'Chaos Orb', 'image' => '/chaos.png', 'category' => 'Currency', 'detailsId' => 'chaos-orb'],
         'pairs' => [

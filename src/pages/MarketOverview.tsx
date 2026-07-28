@@ -4,6 +4,7 @@ import CategoryFilter from "../components/CategoryFilter";
 import ChevronIcon from "../components/ChevronIcon";
 import DayOfLeagueSlider from "../components/DayOfLeagueSlider";
 import DaySpanSlider from "../components/DaySpanSlider";
+import InfoIcon from "../components/InfoIcon";
 import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
@@ -13,13 +14,19 @@ import { useLeague } from "../context/LeagueContext";
 import { useMeta } from "../context/MetaContext";
 import { fetchBestInvestments } from "../lib/api";
 import { formatIsoDate, formatTimeUntil } from "../lib/format";
-import type { BestInvestment as BestInvestmentEntry } from "../types";
+import type { BestInvestment as BestInvestmentEntry, PoeNinjaStatus } from "../types";
 
 type QueryStatus = "loading" | "error" | "success";
 
 function MarketOverview() {
-  const { currentLeague, bounds } = useMeta();
-  const { selectedLeagueIds } = useLeague();
+  const { currentLeague, bounds, visitorCount } = useMeta();
+  const { selectedLeagueIds, liveLeague } = useLeague();
+  // The live league is never one of the selectable/toggleable leagues (see
+  // LeagueContext), but its data is still always requested as a display-only
+  // overlay — the backend only adds it when its id is present in `leagues`.
+  const requestLeagueIds = liveLeague
+    ? [...selectedLeagueIds, liveLeague.id]
+    : selectedLeagueIds;
   const {
     draft,
     applied,
@@ -35,6 +42,7 @@ function MarketOverview() {
   const [investments, setInvestments] = useState<BestInvestmentEntry[]>([]);
   const [status, setStatus] = useState<QueryStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [poeNinjaStatus, setPoeNinjaStatus] = useState<PoeNinjaStatus | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -42,7 +50,7 @@ function MarketOverview() {
 
     fetchBestInvestments(
       {
-        leagues: selectedLeagueIds,
+        leagues: requestLeagueIds,
         categories: applied.categories,
         pairCurrencies: applied.pairCurrencies,
         currentDayOfLeague: applied.currentDayOfLeague,
@@ -55,6 +63,7 @@ function MarketOverview() {
     )
       .then((response) => {
         setInvestments(response.investments);
+        setPoeNinjaStatus(response.poeNinjaStatus);
         setStatus("success");
         setErrorMessage(null);
       })
@@ -65,7 +74,7 @@ function MarketOverview() {
       });
 
     return () => controller.abort();
-  }, [applied, selectedLeagueIds]);
+  }, [applied, selectedLeagueIds, liveLeague]);
 
   useEffect(() => {
     if (!isFiltersOpen) return;
@@ -84,10 +93,13 @@ function MarketOverview() {
   return (
     <main className="market-overview">
       <header className="league-banner">
-        <h1 className="league-banner-name">
-          {currentLeague.name} league{" "}
-          <span className="league-banner-version">{currentLeague.version}</span>
-        </h1>
+        <div className="league-banner-top-row">
+          <h1 className="league-banner-name">
+            {currentLeague.name} league{" "}
+            <span className="league-banner-version">{currentLeague.version}</span>
+          </h1>
+          <InfoIcon visitorCount={visitorCount} poeNinjaStatus={poeNinjaStatus} />
+        </div>
         <p className="league-banner-started">
           {leagueHasStarted
             ? `Started ${formatIsoDate(currentLeague.startDate)}`

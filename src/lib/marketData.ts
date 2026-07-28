@@ -39,10 +39,23 @@ export const DEFAULT_CURRENT_DATE = getTodayAtUtcMidnight()
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
+// Rounds UP to the next UTC midnight (a no-op if already exact) — a
+// league's startDate is a real launch moment (e.g. 19:00Z), and no history
+// snapshot can exist before that moment, so the first midnight-anchored
+// daily snapshot that can possibly reflect real data is the *next* one
+// after startDate, not startDate's own calendar day. This mirrors the
+// backend's identical rounding in MarketData::getAllHistoryRows — both need
+// to agree on which dayOfLeague number "today" is.
+function ceilToUtcMidnight(epochMs: number): number {
+  return Math.ceil(epochMs / MS_PER_DAY) * MS_PER_DAY
+}
+
 export function getDayOfLeagueForDate(date: string, leagueStartDate: string): number {
   return (
     Math.round(
-      (new Date(date).getTime() - new Date(leagueStartDate).getTime()) / MS_PER_DAY,
+      (ceilToUtcMidnight(new Date(date).getTime()) -
+        ceilToUtcMidnight(new Date(leagueStartDate).getTime())) /
+        MS_PER_DAY,
     ) + 1
   )
 }

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useMeta } from "../context/MetaContext";
-import { changeClass, formatPercentChange, formatRate } from "../lib/format";
+import { changeClass, formatDate, formatPercentChange, formatRate } from "../lib/format";
 import { getImageUrl } from "../lib/marketData";
 import type { HistoryRow, LeagueHistoryRows, LeagueMeta } from "../types";
 
@@ -34,6 +34,50 @@ function InvestmentTrend({
 }) {
   const { leagues } = useMeta();
   const [hovered, setHovered] = useState<HoveredPoint | null>(null);
+  const [tooltipOffset, setTooltipOffset] = useState({ x: 0, y: 0 });
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  // Nudges the tooltip back on-screen if its default position (centered
+  // above the hovered point) would spill off any edge of the viewport —
+  // measured after it renders but before paint, so there's no visible
+  // flash at the wrong position first.
+  useLayoutEffect(() => {
+    if (!hovered) {
+      setTooltipOffset({ x: 0, y: 0 });
+      return;
+    }
+    const tooltip = tooltipRef.current;
+    if (!tooltip) return;
+
+    const margin = 8;
+    const rect = tooltip.getBoundingClientRect();
+
+    setTooltipOffset((current) => {
+      // rect already has `current`'s offset baked in (it's what was just
+      // rendered) — subtract it back out to find where the tooltip would
+      // sit with no offset at all, then compute the correction fresh from
+      // that, rather than off of whatever offset a previous hover target
+      // happened to leave behind.
+      const naturalLeft = rect.left - current.x;
+      const naturalTop = rect.top - current.y;
+
+      let x = 0;
+      if (naturalLeft < margin) {
+        x = margin - naturalLeft;
+      } else if (naturalLeft + rect.width > window.innerWidth - margin) {
+        x = window.innerWidth - margin - rect.width - naturalLeft;
+      }
+
+      let y = 0;
+      if (naturalTop < margin) {
+        y = margin - naturalTop;
+      } else if (naturalTop + rect.height > window.innerHeight - margin) {
+        y = window.innerHeight - margin - rect.height - naturalTop;
+      }
+
+      return x === current.x && y === current.y ? current : { x, y };
+    });
+  }, [hovered]);
 
   const startDay = currentDayOfLeague - daysBack;
   const endDay = currentDayOfLeague + daysForward;
@@ -171,10 +215,11 @@ function InvestmentTrend({
       </svg>
       {hovered && (
         <div
+          ref={tooltipRef}
           className="investment-trend-tooltip"
           style={{
-            left: hovered.clientX,
-            top: hovered.clientY,
+            left: hovered.clientX + tooltipOffset.x,
+            top: hovered.clientY + tooltipOffset.y,
           }}
         >
           <div className="investment-trend-tooltip-header">
@@ -185,7 +230,7 @@ function InvestmentTrend({
               {hovered.league.name}
             </span>
             <span className="investment-trend-tooltip-day">
-              Day {hovered.row.dayOfLeague}
+              Day {hovered.row.dayOfLeague} · {formatDate(hovered.row.timestamp)}
             </span>
           </div>
           <div className="investment-trend-tooltip-value-row">

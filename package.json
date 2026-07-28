@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "backend:dev": "php -S localhost:8080 -t backend/public backend/public/index.php",
-    "backend:prod": "npm run build && php -S localhost:8080 -t dist backend/public/index.php"
+    "backend:dev": "php -c backend/php.ini -S localhost:8080 -t backend/public backend/public/index.php",
+    "backend:prod": "npm run build && php -c backend/php.ini -S localhost:8080 -t dist backend/public/index.php"
   },
   "dependencies": {
     "react": "^19.2.7",

@@ -1,13 +1,23 @@
 import { useFilters } from "../context/FiltersContext";
 import { useMeta } from "../context/MetaContext";
+import { DEFAULT_CURRENT_DATE, getDayOfLeagueForDate } from "../lib/marketData";
 
 function DayOfLeagueSlider() {
   const { draft, setDraftCurrentDayOfLeague } = useFilters();
-  const { minDayOfLeague, maxDayOfLeague } = useMeta().bounds;
+  const { bounds, currentLeague } = useMeta();
+  const { minDayOfLeague, maxDayOfLeague } = bounds;
   const currentDayOfLeague = draft.currentDayOfLeague;
 
   const range = maxDayOfLeague - minDayOfLeague || 1;
   const percent = ((currentDayOfLeague - minDayOfLeague) / range) * 100;
+
+  const todayDayOfLeague = Math.min(
+    Math.max(
+      getDayOfLeagueForDate(DEFAULT_CURRENT_DATE, currentLeague.startDate),
+      minDayOfLeague,
+    ),
+    maxDayOfLeague,
+  );
 
   return (
     <div className="day-of-league-slider">
@@ -15,7 +25,10 @@ function DayOfLeagueSlider() {
         className="day-of-league-slider-label"
         htmlFor="day-of-league-slider"
       >
-        Day of league: {currentDayOfLeague}
+        Day of league: {currentDayOfLeague}{" "}
+        <span className="day-of-league-slider-today">
+          (today: day {todayDayOfLeague})
+        </span>
       </label>
       <input
         id="day-of-league-slider"

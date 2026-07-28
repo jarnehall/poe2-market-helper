@@ -2,12 +2,12 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useLeague } from '../context/LeagueContext'
 
 function LeagueFilter({ children }: { children?: ReactNode }) {
-  const { leagues, isLeagueSelected, toggleLeague } = useLeague()
+  const { selectableLeagues, liveLeague, isLeagueSelected, toggleLeague } = useLeague()
 
   return (
     <div className="league-filter">
       <div className="league-filter-buttons" role="group" aria-label="Leagues">
-        {leagues.map((league) => {
+        {selectableLeagues.map((league) => {
           const isSelected = isLeagueSelected(league.id)
           return (
             <button
@@ -28,6 +28,19 @@ function LeagueFilter({ children }: { children?: ReactNode }) {
             </button>
           )
         })}
+        {liveLeague && (
+          // Not a toggle — the live league is always shown as an overlay
+          // regardless of selection (it never contributes to the ranking),
+          // so this just surfaces its color/name, not a selectable control.
+          <span
+            className="league-filter-live-badge"
+            style={{ '--league-color': liveLeague.color } as CSSProperties}
+            title={`${liveLeague.name} is always shown as a live overlay, not a selectable data source`}
+          >
+            <span className="league-filter-live-badge-dot" />
+            {liveLeague.name}
+          </span>
+        )}
       </div>
       {children}
     </div>

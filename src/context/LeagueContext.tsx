@@ -6,6 +6,8 @@ import { useMeta } from './MetaContext'
 
 interface LeagueContextValue {
   leagues: LeagueMeta[]
+  selectableLeagues: LeagueMeta[]
+  liveLeague: LeagueMeta | null
   selectedLeagueIds: string[]
   selectedLeagues: LeagueMeta[]
   isLeagueSelected: (leagueId: string) => boolean
@@ -17,9 +19,22 @@ const LeagueContext = createContext<LeagueContextValue | null>(null)
 export function LeagueProvider({ children }: { children: ReactNode }) {
   const { leagues } = useMeta()
 
-  const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>(() =>
-    getStoredStringArray('selectedLeagueIds', leagues.length > 0 ? [leagues[0].id] : []),
-  )
+  // The live league never contributes to best-investments ranking on its
+  // own (its data is a display-only overlay, always fetched regardless of
+  // selection — see MarketOverview) so it's excluded from the set a user
+  // can toggle on/off entirely, not just from the default.
+  const selectableLeagues = useMemo(() => leagues.filter((league) => !league.isLive), [leagues])
+  const liveLeague = useMemo(() => leagues.find((league) => league.isLive) ?? null, [leagues])
+
+  const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>(() => {
+    const defaultLeague = selectableLeagues[0] ?? leagues[0]
+    const stored = getStoredStringArray('selectedLeagueIds', defaultLeague ? [defaultLeague.id] : [])
+    // Drops the live league id out of anything restored from a previous
+    // session (from before it stopped being individually selectable), so a
+    // stale localStorage value can't leave it as the sole "selected" league.
+    const sanitized = stored.filter((id) => selectableLeagues.some((league) => league.id === id))
+    return sanitized.length > 0 ? sanitized : defaultLeague ? [defaultLeague.id] : []
+  })
 
   useEffect(
     () => setStoredStringArray('selectedLeagueIds', selectedLeagueIds),
@@ -45,12 +60,14 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
   const value = useMemo<LeagueContextValue>(
     () => ({
       leagues,
+      selectableLeagues,
+      liveLeague,
       selectedLeagueIds,
       selectedLeagues,
       isLeagueSelected: (leagueId: string) => selectedLeagueIds.includes(leagueId),
       toggleLeague,
     }),
-    [leagues, selectedLeagues, selectedLeagueIds],
+    [leagues, selectableLeagues, liveLeague, selectedLeagues, selectedLeagueIds],
   )
 
   return (

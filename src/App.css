@@ -21,6 +21,18 @@
   margin-top: 2em;
 }
 
+/* Puts the info icon on the same row as the heading, right-aligned to the
+   same edge the card grid's rightmost column ends at (both are full-width
+   within .market-overview, so justify-content: space-between naturally
+   lines the icon's right edge up with it) and vertically centered with the
+   heading's own line, instead of hardcoding either position by hand. */
+.league-banner-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .league-banner-name {
   display: flex;
   align-items: center;
@@ -102,6 +114,89 @@
   background: var(--league-color);
   filter: brightness(1.15);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* Not a button — the live league is always shown, never toggled, so it
+   reads as informational (muted text, no border/hover/press states) while
+   still carrying its own color via the dot, same as the real toggles. */
+.league-filter-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.league-filter-live-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--league-color);
+  flex-shrink: 0;
+}
+
+/* Sits inline in .league-banner-top-row now (see App.css's comment there for
+   the alignment reasoning) — position: relative is only so the popover
+   below can anchor to this element specifically, not the page. */
+.info-icon {
+  position: relative;
+  z-index: 40;
+}
+
+.info-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.info-icon-button:hover,
+.info-icon-button[aria-expanded='true'] {
+  color: var(--select);
+}
+
+.info-icon-button-attention {
+  color: var(--loss);
+}
+
+.info-icon-button-attention:hover,
+.info-icon-button-attention[aria-expanded='true'] {
+  color: var(--loss);
+  filter: brightness(1.2);
+}
+
+.info-icon-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-float);
+}
+
+.info-icon-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.info-icon-line-warning {
+  color: var(--loss);
 }
 
 .filters-menu {
@@ -304,6 +399,11 @@
   display: flex;
   justify-content: space-between;
   font-size: 12px;
+  color: var(--text);
+}
+
+.day-of-league-slider-today {
+  font-weight: 500;
   color: var(--text);
 }
 

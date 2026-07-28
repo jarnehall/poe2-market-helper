@@ -1,0 +1,18 @@
+RewriteEngine On
+
+# backend/ and data/ live inside this same web root (one.com's FTP root has
+# no folder above the web root to hide them in) — block direct HTTP access
+# to them. The app itself never reads them over HTTP, only via PHP's own
+# require/file_get_contents calls, which this doesn't affect.
+RewriteRule ^(backend|data)(/|$) - [F,L]
+
+# Route API requests to the PHP front controller.
+RewriteRule ^api/(.*)$ api.php [L,QSA]
+
+# Serve real static files/directories as-is.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Everything else is a client-side route -> the SPA's index.html.
+RewriteRule ^ /index.html [L]

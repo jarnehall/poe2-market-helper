@@ -20,6 +20,10 @@ export interface LeagueMeta {
   id: string
   name: string
   color: string
+  // The current, still-running league — fetched live from poe.ninja instead
+  // of a static data/ folder, so it never contributes to best-investments
+  // ranking (only shown as an extra overlay line when selected).
+  isLive: boolean
 }
 
 export interface PairCurrencyMeta {
@@ -47,6 +51,7 @@ export interface Meta {
   categories: string[]
   pairCurrencies: PairCurrencyMeta[]
   bounds: FilterBounds
+  visitorCount: number
 }
 
 export interface HistoryRow {
@@ -77,6 +82,17 @@ export interface BestInvestment {
   leagueHistories: LeagueHistoryRows[]
 }
 
+export interface PoeNinjaStatus {
+  // Whether the live league's data was even relevant this request (false
+  // when the live league isn't among the requested leagues, or there were
+  // no investments to look it up for) — distinct from "checked and found
+  // zero failures".
+  checked: boolean
+  attemptedCount: number
+  failedItemIds: string[]
+}
+
 export interface BestInvestmentsResponse {
   investments: BestInvestment[]
+  poeNinjaStatus: PoeNinjaStatus
 }

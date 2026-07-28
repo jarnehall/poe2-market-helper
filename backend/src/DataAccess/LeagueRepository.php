@@ -10,7 +10,7 @@ namespace App\DataAccess;
 // every JSON file in the project.
 final class LeagueRepository
 {
-    /** @param array<int, array{id: string, name: string, color: string, folder: string}> $leagueConfigs */
+    /** @param array<int, array{id: string, name: string, color: string, folder: ?string, startDate?: string}> $leagueConfigs */
     public function __construct(
         private readonly string $dataDir,
         private readonly array $leagueConfigs,
@@ -46,7 +46,13 @@ final class LeagueRepository
     /** Every category found across every league's data folder — all folders share the same file names. */
     public function listCategories(): array
     {
-        $folder = $this->leagueConfigs[0]['folder'] ?? null;
+        $folder = null;
+        foreach ($this->leagueConfigs as $config) {
+            if ($config['folder'] !== null) {
+                $folder = $config['folder'];
+                break;
+            }
+        }
         if ($folder === null) {
             return [];
         }
@@ -65,6 +71,9 @@ final class LeagueRepository
         $names = []; // pair id => display name, resolved via any entry's core.items
 
         foreach ($this->leagueConfigs as $config) {
+            if ($config['folder'] === null) {
+                continue;
+            }
             $files = glob($this->dataDir . '/' . $config['folder'] . '/*.json') ?: [];
             foreach ($files as $file) {
                 $entries = json_decode(file_get_contents($file), true) ?: [];
@@ -91,6 +100,58 @@ final class LeagueRepository
     }
 
     /**
+     * How far day-of-league reaches for any single pair, across every
+     * static league — each pair's newest entry vs. its own league's
+     * startDate (day-of-league is always anchored to the league's start,
+     * never a pair's own oldest entry — see getAllHistoryRows). Used
+     * (alongside the live league's real elapsed days) as the day-of-league
+     * slider's upper bound, so it's always just big enough to cover
+     * whatever data actually exists instead of an arbitrary fixed constant.
+     */
+    public function maxAvailableDayOfLeague(): int
+    {
+        $maxDays = 1;
+
+        foreach ($this->leagueConfigs as $config) {
+            if ($config['folder'] === null) {
+                continue;
+            }
+
+            // Rounded UP to the next UTC midnight (a no-op if already exact)
+            // to match Domain\MarketData's own day-of-league math: a
+            // league's startDate is a real launch moment (e.g. 19:00Z), and
+            // no history snapshot can exist before that moment, so the
+            // first midnight snapshot that can possibly reflect real data is
+            // the *next* one after startDate, not startDate's own day.
+            $startTime = intdiv(strtotime($config['startDate']), 86400) * 86400;
+            if (strtotime($config['startDate']) % 86400 !== 0) {
+                $startTime += 86400;
+            }
+
+            $files = glob($this->dataDir . '/' . $config['folder'] . '/*.json') ?: [];
+            foreach ($files as $file) {
+                $entries = json_decode(file_get_contents($file), true) ?: [];
+                foreach ($entries as $entry) {
+                    foreach ($entry['pairs'] as $pair) {
+                        $history = $pair['history'];
+                        if (count($history) === 0) {
+                            continue;
+                        }
+
+                        $newest = intdiv(strtotime($history[0]['timestamp']), 86400) * 86400;
+                        $days = (int) round(($newest - $startTime) / 86400) + 1;
+                        if ($days > $maxDays) {
+                            $maxDays = $days;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $maxDays;
+    }
+
+    /**
      * Leagues narrowed to only the given league ids, with itemEntries loaded
      * only from the given categories' files, and each entry's pairs narrowed
      * to only the given pair currencies. Skips any (league, category) file
@@ -101,7 +162,7 @@ final class LeagueRepository
         $result = [];
 
         foreach ($this->leagueConfigs as $config) {
-            if (!in_array($config['id'], $leagueIds, true)) {
+            if (!in_array($config['id'], $leagueIds, true) || $config['folder'] === null) {
                 continue;
             }
 
@@ -131,6 +192,7 @@ final class LeagueRepository
                 'id' => $config['id'],
                 'name' => $config['name'],
                 'color' => $config['color'],
+                'startDate' => $config['startDate'],
                 'itemEntries' => $itemEntries,
             ];
         }

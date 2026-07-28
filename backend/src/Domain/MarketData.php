@@ -27,25 +27,45 @@ final class MarketData
         return self::$timestampCache[$timestamp] ??= strtotime($timestamp);
     }
 
+    // Snaps an already-parsed instant UP to the next UTC midnight (a no-op if
+    // it's already exactly midnight). A league's startDate is a real launch
+    // *moment* (e.g. 19:00Z), and no trading — so no history snapshot — can
+    // exist before that moment; the first midnight-anchored daily snapshot
+    // that can possibly reflect any real post-launch data is the one at or
+    // after startDate, i.e. the *next* midnight when startDate isn't already
+    // exactly midnight. So day 1 means the calendar date of that first
+    // possible snapshot, not startDate's own calendar date.
+    private static function ceilToUtcMidnight(int $epochSeconds): int
+    {
+        $days = intdiv($epochSeconds, self::SECONDS_PER_DAY);
+        if ($epochSeconds % self::SECONDS_PER_DAY !== 0) {
+            $days++;
+        }
+
+        return $days * self::SECONDS_PER_DAY;
+    }
+
     /**
      * history is sorted newest-first; returns every entry oldest-first, with
      * each entry's day-over-day percent change, its day of the league, and
      * whether it's currentDayOfLeague.
      *
-     * dayOfLeague is measured in real elapsed days from this pair's own
-     * oldest history entry, not by array position — a pair that's rarely
-     * traded can have real gaps of several days between snapshots, and
-     * treating those as consecutive days would both understate the gap and
-     * wildly overstate the day-over-day change.
+     * dayOfLeague is always measured from the league's own startDate — never
+     * from this pair's own oldest history entry — so day 1 means the same
+     * calendar date for every item in a league. An item with no trades yet
+     * on day 1 (or any other gap) just has no row for that day, rather than
+     * day 1 silently meaning a different real date per item; not by array
+     * position either, since a rarely-traded pair can have real gaps of
+     * several days between snapshots.
      */
-    public static function getAllHistoryRows(array $history, int $currentDayOfLeague): array
+    public static function getAllHistoryRows(array $history, string $startDate, int $currentDayOfLeague): array
     {
         $n = count($history);
         if ($n === 0) {
             return [];
         }
 
-        $oldestTime = self::parseTimestamp($history[$n - 1]['timestamp']);
+        $oldestTime = self::ceilToUtcMidnight(self::parseTimestamp($startDate));
         $rows = [];
 
         for ($originalIndex = $n - 1; $originalIndex >= 0; $originalIndex--) {
@@ -54,7 +74,8 @@ final class MarketData
             $percentChange = $previousEntry !== null
                 ? (($entry['rate'] - $previousEntry['rate']) / $previousEntry['rate']) * 100
                 : null;
-            $dayOfLeague = (int) round((self::parseTimestamp($entry['timestamp']) - $oldestTime) / self::SECONDS_PER_DAY) + 1;
+            $entryTime = self::ceilToUtcMidnight(self::parseTimestamp($entry['timestamp']));
+            $dayOfLeague = (int) round(($entryTime - $oldestTime) / self::SECONDS_PER_DAY) + 1;
 
             $rows[] = [
                 'entry' => $entry,
@@ -97,10 +118,10 @@ final class MarketData
      * based on the future data available. Null only if even that isn't in
      * the history.
      */
-    public static function getWindowPercentChange(array $history, int $currentDayOfLeague, int $daysBack, int $daysForward): ?float
+    public static function getWindowPercentChange(array $history, string $startDate, int $currentDayOfLeague, int $daysBack, int $daysForward): ?float
     {
         return self::windowPercentChangeFromRows(
-            self::getAllHistoryRows($history, $currentDayOfLeague),
+            self::getAllHistoryRows($history, $startDate, $currentDayOfLeague),
             $currentDayOfLeague,
             $daysBack,
             $daysForward,
@@ -122,9 +143,9 @@ final class MarketData
     }
 
     /** A pair's trade volume on exactly currentDayOfLeague, or null if there's no entry for that day. */
-    public static function getVolumeForDay(array $history, int $currentDayOfLeague): ?float
+    public static function getVolumeForDay(array $history, string $startDate, int $currentDayOfLeague): ?float
     {
-        return self::volumeFromRows(self::getAllHistoryRows($history, $currentDayOfLeague), $currentDayOfLeague);
+        return self::volumeFromRows(self::getAllHistoryRows($history, $startDate, $currentDayOfLeague), $currentDayOfLeague);
     }
 
     private static function volumeFromRows(array $rows, int $currentDayOfLeague): ?float
@@ -263,7 +284,7 @@ final class MarketData
                     // getVolumeForDay() and getWindowPercentChange()
                     // separately, each silently recomputing getAllHistoryRows()
                     // (and its per-entry strtotime() parsing) from scratch.
-                    $rows = self::getAllHistoryRows($pair['history'], $currentDayOfLeague);
+                    $rows = self::getAllHistoryRows($pair['history'], $league['startDate'], $currentDayOfLeague);
 
                     $volume = self::volumeFromRows($rows, $currentDayOfLeague);
                     if ($volume !== null) {
