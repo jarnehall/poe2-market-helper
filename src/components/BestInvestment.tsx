@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { useMeta } from "../context/MetaContext";
 import { changeClass, formatPercentChange } from "../lib/format";
 import { getImageUrl, getPoeNinjaUrl } from "../lib/marketData";
-import type { BestInvestment as BestInvestmentEntry } from "../types";
+import type { BestInvestment as BestInvestmentEntry, FavoriteItem } from "../types";
+import FavoriteStar from "./FavoriteStar";
 import InvestmentTrend from "./InvestmentTrend";
 
 function BestInvestment({
@@ -15,6 +16,9 @@ function BestInvestment({
   currentDayOfLeague,
   daysBack,
   daysForward,
+  isFavorite,
+  onToggleFavorite,
+  extraContent,
 }: {
   title: ReactNode;
   caption: string;
@@ -25,6 +29,12 @@ function BestInvestment({
   currentDayOfLeague: number;
   daysBack: number;
   daysForward: number;
+  isFavorite: (itemId: string, pairId: string) => boolean;
+  onToggleFavorite: (favorite: FavoriteItem) => void;
+  // Rendered right under the title in every state (loading/empty/loaded) —
+  // currently just the favorites search box, so it's always reachable even
+  // before anything's been pinned yet.
+  extraContent?: ReactNode;
 }) {
   const { leagues } = useMeta();
   const leagueById = new Map(leagues.map((league) => [league.id, league]));
@@ -34,6 +44,7 @@ function BestInvestment({
     return (
       <section className="best-investment">
         <h2 className="best-investment-title">{title}</h2>
+        {extraContent}
         <ul className="best-investment-grid" aria-hidden="true">
           {Array.from({ length: skeletonCount }).map((_, index) => (
             <li
@@ -69,7 +80,8 @@ function BestInvestment({
     return (
       <section className="best-investment best-investment-none">
         <h2 className="best-investment-title">{title}</h2>
-        <p className="best-investment-none-message">{emptyMessage}</p>
+        {extraContent}
+        {emptyMessage && <p className="best-investment-none-message">{emptyMessage}</p>}
       </section>
     );
   }
@@ -77,12 +89,24 @@ function BestInvestment({
   return (
     <section className="best-investment">
       <h2 className="best-investment-title">{title}</h2>
+      {extraContent}
       <ul className="best-investment-grid">
         {investments.map((investment) => (
           <li
             key={`${investment.item.id}-${investment.pairId}`}
             className="best-investment-card"
           >
+            <FavoriteStar
+              isFavorite={isFavorite(investment.item.id, investment.pairId)}
+              onToggle={() =>
+                onToggleFavorite({
+                  category: investment.item.category,
+                  itemId: investment.item.id,
+                  pairId: investment.pairId,
+                })
+              }
+              itemName={investment.item.name}
+            />
             <div className="best-investment-card-header">
               <img
                 className="best-investment-image"

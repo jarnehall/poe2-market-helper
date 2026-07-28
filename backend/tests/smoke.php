@@ -172,6 +172,59 @@ check(MarketData::getPairDisplayName('exalted', [$league]) === 'Exalted Orb', 'g
 check(MarketData::getPairImage('exalted', [$league]) === '/exalted.png', 'getPairImage resolves a pair id via core.items');
 check(MarketData::getPairDisplayName('unknown-pair', [$league]) === 'unknown-pair', 'getPairDisplayName falls back to the raw id when not found');
 
+// --- getInvestmentsForPins: favorites/pins bypass ranking, unlike getBestInvestmentsForWindow ---
+
+$otherLeague = [
+    'id' => 'other-league',
+    'name' => 'Other League',
+    'color' => '#111111',
+    'startDate' => $leagueStart,
+    'itemEntries' => [], // doesn't carry the "chaos" item at all
+];
+
+$pins = [
+    ['category' => 'Currency', 'itemId' => 'chaos', 'pairId' => 'divine'],
+    ['category' => 'Currency', 'itemId' => 'chaos', 'pairId' => 'exalted'],
+    ['category' => 'Currency', 'itemId' => 'unknown-item', 'pairId' => 'divine'],
+];
+
+$pinned = MarketData::getInvestmentsForPins(
+    [$league, $otherLeague],
+    $pins,
+    currentDayOfLeague: 3,
+    daysBack: 2,
+    daysForward: 0,
+);
+
+check(count($pinned) === 2, 'a pin for an item missing from every league is skipped entirely (2 of 3 pins resolve)');
+
+$divinePin = null;
+$exaltedPin = null;
+foreach ($pinned as $entry) {
+    if ($entry['pairId'] === 'divine') $divinePin = $entry;
+    if ($entry['pairId'] === 'exalted') $exaltedPin = $entry;
+}
+
+check($divinePin !== null && $exaltedPin !== null, 'both real pins resolve independently, each keeping its own pairId (no best-pair-per-item collapsing)');
+check(closeTo($divinePin['percentChange'] ?? null, 100.0), 'the divine pin gets its own window percent change (+100%), unaffected by minVolume/gain-only rules');
+check(closeTo($exaltedPin['percentChange'] ?? null, 20.0), 'the exalted pin (only +20%) is still included, not dropped for being the "worse" pair');
+check(
+    count($divinePin['leagueHistories']) === 1,
+    'a league with no entry for the pinned item (other-league) contributes no leagueHistories row for it',
+);
+
+$noWindowData = MarketData::getInvestmentsForPins(
+    [$league],
+    [['category' => 'Currency', 'itemId' => 'chaos', 'pairId' => 'divine']],
+    currentDayOfLeague: 3,
+    daysBack: 0,
+    daysForward: 100,
+);
+check(
+    count($noWindowData) === 1 && $noWindowData[0]['percentChange'] === null,
+    'a pin with no data at all in the requested window is still included, with a null percentChange, rather than dropped like getBestInvestmentsForWindow would',
+);
+
 if ($failures > 0) {
     fwrite(STDERR, "\n{$failures} check(s) failed.\n");
     exit(1);

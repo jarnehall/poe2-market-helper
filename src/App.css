@@ -64,7 +64,19 @@
   gap: 12px;
 }
 
-.league-filter-buttons {
+.league-filter-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.league-filter-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.league-filter-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -74,6 +86,7 @@
    pair currency, the filters toggle itself): same padding, radius, type
    scale, and transition everywhere, so they read as one control set
    rather than a pile of similar-but-different buttons. */
+.league-filter-toggle-button,
 .league-filter-button,
 .filters-toggle-button,
 .category-filter-button,
@@ -93,11 +106,25 @@
     box-shadow 0.15s ease;
 }
 
+.league-filter-toggle-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--text-h);
+}
+
+.league-filter-toggle-button[aria-expanded='true'] {
+  border-color: var(--select);
+  color: var(--select);
+}
+
 .league-filter-button {
   border-color: var(--league-color);
   color: var(--league-color);
 }
 
+.league-filter-toggle-button:hover,
 .league-filter-button:hover,
 .filters-toggle-button:hover,
 .category-filter-button:hover,
@@ -116,10 +143,45 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
-/* Not a button — the live league is always shown, never toggled, so it
-   reads as informational (muted text, no border/hover/press states) while
-   still carrying its own color via the dot, same as the real toggles. */
-.league-filter-live-badge {
+.league-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-float);
+}
+
+.league-filter-dropdown-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.league-filter-dropdown-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.league-filter-dropdown-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* Read-only — badges reflect what's currently active (the always-on live
+   league plus whatever's selected in the dropdown); selecting only ever
+   happens via the dropdown's buttons above, never by clicking a badge. */
+.league-filter-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -129,12 +191,24 @@
   color: var(--text);
 }
 
-.league-filter-live-badge-dot {
+.league-filter-badge-dot {
   width: 8px;
   height: 8px;
   border-radius: 999px;
   background: var(--league-color);
   flex-shrink: 0;
+}
+
+.league-filter-current-tag {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--select);
+  background: var(--select-bg);
 }
 
 /* Sits inline in .league-banner-top-row now (see App.css's comment there for
@@ -319,6 +393,38 @@
   color: var(--text-h);
 }
 
+.day-of-league-slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.day-of-league-jump-today-button {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--select);
+  background: transparent;
+  color: var(--select);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.day-of-league-jump-today-button:hover:not(:disabled) {
+  background: var(--select-bg);
+}
+
+.day-of-league-jump-today-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .category-filter-buttons,
 .pair-currency-filter-buttons {
   display: flex;
@@ -501,6 +607,7 @@
 }
 
 .best-investment-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -512,6 +619,130 @@
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
+}
+
+.favorite-star {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--border);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.best-investment-card:hover .favorite-star,
+.favorite-star-active {
+  opacity: 1;
+}
+
+.favorite-star:hover {
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+.favorite-star-active {
+  color: var(--accent);
+}
+
+.favorites-search {
+  position: relative;
+  max-width: 420px;
+  margin-bottom: 16px;
+}
+
+.favorites-search-input {
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-h);
+  font-size: 14px;
+  transition: border-color 0.15s ease;
+}
+
+.favorites-search-input:focus {
+  outline: none;
+  border-color: var(--select);
+}
+
+.favorites-search-input::placeholder {
+  color: var(--text);
+}
+
+.favorites-search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-float);
+}
+
+.favorites-search-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.favorites-search-result:hover,
+.favorites-search-result-active {
+  background: var(--surface);
+}
+
+.favorites-search-result-image {
+  height: 24px;
+  width: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.favorites-search-result-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorites-search-empty {
+  padding: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Search results aren't cards — the star should always be visible here
+   (not hover-revealed) and laid out inline rather than pinned to a corner. */
+.favorites-search-result .favorite-star {
+  position: static;
+  opacity: 1;
 }
 
 .best-investment-card:hover {
@@ -622,6 +853,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  /* Reserves room for .favorite-star, which sits absolutely positioned in
+     the card's top-right corner (see there) — without this, the category
+     badge (the rightmost thing in this row) sits directly underneath it. */
+  padding-right: 28px;
 }
 
 .best-investment-name {
@@ -785,13 +1020,6 @@
   margin: 12px 0 0;
   font-size: 12px;
   color: var(--text);
-}
-
-.best-investment-none {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
 }
 
 .best-investment-none-message {

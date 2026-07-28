@@ -77,9 +77,29 @@ export interface BestInvestment {
   pairId: string
   pairName: string
   pairImage: string | null
-  percentChange: number
+  // Nullable for a pinned favorite with no data at all in the current day
+  // window (a best-investments entry, ranked by change, always has one).
+  percentChange: number | null
   leagueChanges: LeagueChange[]
   leagueHistories: LeagueHistoryRows[]
+}
+
+export interface FavoriteItem {
+  category: string
+  itemId: string
+  pairId: string
+}
+
+// One entry in the full item catalog the favorites search box matches
+// against — everything needed to render a result row and favorite it,
+// without waiting for it to show up as a ranked best-investments card.
+export interface CatalogItem {
+  id: string
+  name: string
+  image: string
+  category: string
+  detailsId: string
+  pairId: string
 }
 
 export interface PoeNinjaStatus {

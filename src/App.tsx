@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { FavoritesProvider } from './context/FavoritesContext'
 import { FiltersProvider } from './context/FiltersContext'
 import { LeagueProvider } from './context/LeagueContext'
 import { MetaProvider } from './context/MetaContext'
@@ -10,11 +11,13 @@ function App() {
     <MetaProvider>
       <LeagueProvider>
         <FiltersProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<MarketOverview />} />
-            </Routes>
-          </BrowserRouter>
+          <FavoritesProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<MarketOverview />} />
+              </Routes>
+            </BrowserRouter>
+          </FavoritesProvider>
         </FiltersProvider>
       </LeagueProvider>
     </MetaProvider>

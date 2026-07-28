@@ -4,15 +4,17 @@ import CategoryFilter from "../components/CategoryFilter";
 import ChevronIcon from "../components/ChevronIcon";
 import DayOfLeagueSlider from "../components/DayOfLeagueSlider";
 import DaySpanSlider from "../components/DaySpanSlider";
+import FavoritesSearch from "../components/FavoritesSearch";
 import InfoIcon from "../components/InfoIcon";
 import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
 import PairCurrencyFilter from "../components/PairCurrencyFilter";
+import { useFavorites } from "../context/FavoritesContext";
 import { useFilters } from "../context/FiltersContext";
 import { useLeague } from "../context/LeagueContext";
 import { useMeta } from "../context/MetaContext";
-import { fetchBestInvestments } from "../lib/api";
+import { fetchBestInvestments, fetchFavorites } from "../lib/api";
 import { formatIsoDate, formatTimeUntil } from "../lib/format";
 import type { BestInvestment as BestInvestmentEntry, PoeNinjaStatus } from "../types";
 
@@ -21,6 +23,7 @@ type QueryStatus = "loading" | "error" | "success";
 function MarketOverview() {
   const { currentLeague, bounds, visitorCount } = useMeta();
   const { selectedLeagueIds, liveLeague } = useLeague();
+  const { favorites, isFavorite, toggleFavorite } = useFavorites();
   // The live league is never one of the selectable/toggleable leagues (see
   // LeagueContext), but its data is still always requested as a display-only
   // overlay — the backend only adds it when its id is present in `leagues`.
@@ -43,6 +46,9 @@ function MarketOverview() {
   const [status, setStatus] = useState<QueryStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [poeNinjaStatus, setPoeNinjaStatus] = useState<PoeNinjaStatus | null>(null);
+
+  const [favoriteInvestments, setFavoriteInvestments] = useState<BestInvestmentEntry[]>([]);
+  const [favoritesStatus, setFavoritesStatus] = useState<QueryStatus>("loading");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -75,6 +81,49 @@ function MarketOverview() {
 
     return () => controller.abort();
   }, [applied, selectedLeagueIds, liveLeague]);
+
+  useEffect(() => {
+    if (favorites.length === 0) {
+      setFavoriteInvestments([]);
+      setFavoritesStatus("success");
+      return;
+    }
+
+    const controller = new AbortController();
+    setFavoritesStatus("loading");
+
+    fetchFavorites(
+      {
+        favorites,
+        leagues: requestLeagueIds,
+        currentDayOfLeague: applied.currentDayOfLeague,
+        daysBack: applied.daysBack,
+        daysForward: applied.daysForward,
+      },
+      controller.signal,
+    )
+      .then((response) => {
+        setFavoriteInvestments(response.investments);
+        setFavoritesStatus("success");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setFavoritesStatus("error");
+      });
+
+    return () => controller.abort();
+    // Deliberately keyed on just the day-window fields (not the whole
+    // `applied` object) — favorites ignore Categories/pair-currency/count/
+    // minVolume entirely, so a change to those shouldn't refetch this list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    favorites,
+    selectedLeagueIds,
+    liveLeague,
+    applied.currentDayOfLeague,
+    applied.daysBack,
+    applied.daysForward,
+  ]);
 
   useEffect(() => {
     if (!isFiltersOpen) return;
@@ -159,6 +208,22 @@ function MarketOverview() {
           )}
         </div>
       </LeagueFilter>
+      {favoritesStatus !== "error" && (
+        <BestInvestment
+          title="Favorites"
+          caption={`Rate change from day ${applied.currentDayOfLeague - applied.daysBack} to day ${applied.currentDayOfLeague + applied.daysForward}.`}
+          emptyMessage=""
+          investments={favoriteInvestments}
+          isLoading={favoritesStatus === "loading"}
+          skeletonCount={favorites.length}
+          currentDayOfLeague={applied.currentDayOfLeague}
+          daysBack={applied.daysBack}
+          daysForward={applied.daysForward}
+          isFavorite={isFavorite}
+          onToggleFavorite={toggleFavorite}
+          extraContent={<FavoritesSearch />}
+        />
+      )}
       {status === "error" ? (
         <section className="best-investment best-investment-none">
           <h2 className="best-investment-title">Best investments</h2>
@@ -185,6 +250,8 @@ function MarketOverview() {
           currentDayOfLeague={applied.currentDayOfLeague}
           daysBack={applied.daysBack}
           daysForward={applied.daysForward}
+          isFavorite={isFavorite}
+          onToggleFavorite={toggleFavorite}
         />
       )}
     </main>

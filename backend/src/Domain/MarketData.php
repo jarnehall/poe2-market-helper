@@ -326,6 +326,84 @@ final class MarketData
         return array_slice($result, 0, $count);
     }
 
+    /**
+     * The exact pinned/favorited items, resolved against the given leagues —
+     * unlike getBestInvestmentsForWindow, every pin is included regardless of
+     * volume, sign of change, or count: there's no threshold or top-N cutoff,
+     * since a favorite is something the user explicitly chose to keep
+     * watching. A pin with no data at all in the requested window still
+     * appears, just with a null percentChange (rendered as "—"). A pin whose
+     * item/pair isn't found in any of the given leagues is skipped entirely
+     * (e.g. a stale favorite for an item that no longer exists).
+     *
+     * @param array<int, array{category: string, itemId: string, pairId: string}> $pins
+     */
+    public static function getInvestmentsForPins(
+        array $leagues,
+        array $pins,
+        int $currentDayOfLeague,
+        int $daysBack,
+        int $daysForward,
+    ): array {
+        $itemEntriesByLeagueId = [];
+        foreach ($leagues as $league) {
+            $byItemId = [];
+            foreach ($league['itemEntries'] as $entry) {
+                $byItemId[$entry['item']['id']] = $entry;
+            }
+            $itemEntriesByLeagueId[$league['id']] = $byItemId;
+        }
+
+        $results = [];
+
+        foreach ($pins as $pin) {
+            $item = null;
+            $leagueChanges = [];
+            $leagueHistories = [];
+
+            foreach ($leagues as $league) {
+                $entry = $itemEntriesByLeagueId[$league['id']][$pin['itemId']] ?? null;
+                if ($entry === null) {
+                    continue;
+                }
+                $item ??= $entry['item'];
+
+                $pair = null;
+                foreach ($entry['pairs'] as $candidate) {
+                    if ($candidate['id'] === $pin['pairId']) {
+                        $pair = $candidate;
+                        break;
+                    }
+                }
+                if ($pair === null) {
+                    continue;
+                }
+
+                $leagueHistories[] = ['league' => $league, 'history' => $pair['history']];
+
+                $rows = self::getAllHistoryRows($pair['history'], $league['startDate'], $currentDayOfLeague);
+                $change = self::windowPercentChangeFromRows($rows, $currentDayOfLeague, $daysBack, $daysForward);
+                if ($change !== null) {
+                    $leagueChanges[] = ['league' => $league, 'percentChange' => $change];
+                }
+            }
+
+            if ($item === null) {
+                continue;
+            }
+
+            $results[] = [
+                'item' => $item,
+                'pairId' => $pin['pairId'],
+                'percentChange' => self::average(array_map(fn(array $c): float => $c['percentChange'], $leagueChanges)),
+                'leagueChanges' => $leagueChanges,
+                'leagueHistories' => $leagueHistories,
+            ];
+        }
+
+        return $results;
+    }
+
     /** Every core item across a league's itemEntries, indexed by id — lets a pair's display name/image be looked up without its own full item entry. */
     // Deliberately NOT cached across calls with a `static` variable keyed by
     // league id: itemEntries for the same league id differ from one request

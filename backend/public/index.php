@@ -10,15 +10,22 @@ $backendDir = dirname(__DIR__);
 $repoRoot = dirname($backendDir);
 
 require_once $backendDir . '/src/Http/JsonResponse.php';
+require_once $backendDir . '/src/Http/QueryParams.php';
 require_once $backendDir . '/src/Http/Router.php';
 require_once $backendDir . '/src/DataAccess/LeagueRepository.php';
 require_once $backendDir . '/src/DataAccess/PoeNinjaClient.php';
 require_once $backendDir . '/src/DataAccess/VisitorTracker.php';
 require_once $backendDir . '/src/Domain/MarketData.php';
+require_once $backendDir . '/src/Api/InvestmentPayloadBuilder.php';
 require_once $backendDir . '/src/Api/MetaController.php';
 require_once $backendDir . '/src/Api/BestInvestmentsController.php';
+require_once $backendDir . '/src/Api/FavoritesController.php';
+require_once $backendDir . '/src/Api/ItemsController.php';
 
 use App\Api\BestInvestmentsController;
+use App\Api\FavoritesController;
+use App\Api\InvestmentPayloadBuilder;
+use App\Api\ItemsController;
 use App\Api\MetaController;
 use App\DataAccess\LeagueRepository;
 use App\DataAccess\PoeNinjaClient;
@@ -36,6 +43,7 @@ $poeNinjaClient = new PoeNinjaClient(
     $currentLeagueInfo['name'],
     $dataDir . '/cache/' . $currentLeagueInfo['id'] . '.json',
 );
+$payloadBuilder = new InvestmentPayloadBuilder($poeNinjaClient, $currentLeagueInfo);
 // __FILE__ (not a hardcoded path) so this works whether index.php is run
 // directly (dev server) or required from public_html/api.php (one.com) —
 // its mtime changes whenever this file is re-uploaded, which is what lets
@@ -79,9 +87,21 @@ if (str_starts_with($requestPath, '/api/')) {
             $repository,
             $leagueConfigs,
             $bounds,
-            $poeNinjaClient,
-            $currentLeagueInfo,
+            $payloadBuilder,
         ))->index($_GET),
+    );
+    $router->get(
+        '#^/api/favorites$#',
+        fn() => (new FavoritesController(
+            $repository,
+            $leagueConfigs,
+            $bounds,
+            $payloadBuilder,
+        ))->index($_GET),
+    );
+    $router->get(
+        '#^/api/items$#',
+        fn() => (new ItemsController($repository))->index(),
     );
     $router->dispatch($method, $requestPath);
 

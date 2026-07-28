@@ -21,15 +21,25 @@ function DayOfLeagueSlider() {
 
   return (
     <div className="day-of-league-slider">
-      <label
-        className="day-of-league-slider-label"
-        htmlFor="day-of-league-slider"
-      >
-        Day of league: {currentDayOfLeague}{" "}
-        <span className="day-of-league-slider-today">
-          (today: day {todayDayOfLeague})
-        </span>
-      </label>
+      <div className="day-of-league-slider-header">
+        <label
+          className="day-of-league-slider-label"
+          htmlFor="day-of-league-slider"
+        >
+          Day of league: {currentDayOfLeague}{" "}
+          <span className="day-of-league-slider-today">
+            (today: day {todayDayOfLeague})
+          </span>
+        </label>
+        <button
+          type="button"
+          className="day-of-league-jump-today-button"
+          disabled={currentDayOfLeague === todayDayOfLeague}
+          onClick={() => setDraftCurrentDayOfLeague(todayDayOfLeague)}
+        >
+          Jump to today
+        </button>
+      </div>
       <input
         id="day-of-league-slider"
         type="range"

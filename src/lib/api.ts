@@ -1,4 +1,4 @@
-import type { BestInvestmentsResponse, Meta } from '../types'
+import type { BestInvestmentsResponse, CatalogItem, FavoriteItem, Meta } from '../types'
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal })
@@ -46,4 +46,31 @@ export function fetchBestInvestments(
   })
 
   return fetchJson<BestInvestmentsResponse>(`/api/best-investments?${query.toString()}`, signal)
+}
+
+export interface FavoritesParams {
+  favorites: FavoriteItem[]
+  leagues: string[]
+  currentDayOfLeague: number
+  daysBack: number
+  daysForward: number
+}
+
+export function fetchFavorites(
+  params: FavoritesParams,
+  signal?: AbortSignal,
+): Promise<BestInvestmentsResponse> {
+  const query = new URLSearchParams({
+    leagues: params.leagues.join(','),
+    currentDayOfLeague: String(params.currentDayOfLeague),
+    daysBack: String(params.daysBack),
+    daysForward: String(params.daysForward),
+    pins: JSON.stringify(params.favorites),
+  })
+
+  return fetchJson<BestInvestmentsResponse>(`/api/favorites?${query.toString()}`, signal)
+}
+
+export function fetchItemsCatalog(signal?: AbortSignal): Promise<{ items: CatalogItem[] }> {
+  return fetchJson<{ items: CatalogItem[] }>('/api/items', signal)
 }
