@@ -75,10 +75,12 @@ final class FavoritesController
         }
 
         $leagues = $this->repository->loadPinned($leagueIds, $pins);
-        $investments = MarketData::getInvestmentsForPins($leagues, $pins, $currentDayOfLeague, $daysBack, $daysForward);
+        $investments = MarketData::getInvestmentsForPins($leagues, $pins, $currentDayOfLeague, $daysForward);
+
+        $investments = $this->payloadBuilder->attachAlternatePairs($investments, $leagues, $currentDayOfLeague, $daysForward);
 
         $liveDataChecked = $this->payloadBuilder->shouldCheckLiveLeague($investments, $leagueIds);
-        $investments = $this->payloadBuilder->augmentWithLiveLeague($investments, $leagueIds, $currentDayOfLeague, $daysBack, $daysForward);
+        $investments = $this->payloadBuilder->augmentWithLiveLeague($investments, $leagueIds);
 
         JsonResponse::send([
             'investments' => array_map(

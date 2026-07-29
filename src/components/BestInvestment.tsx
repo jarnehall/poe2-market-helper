@@ -1,10 +1,31 @@
 import type { ReactNode } from "react";
-import { useMeta } from "../context/MetaContext";
-import { changeClass, formatPercentChange } from "../lib/format";
-import { getImageUrl, getPoeNinjaUrl } from "../lib/marketData";
 import type { BestInvestment as BestInvestmentEntry, FavoriteItem } from "../types";
-import FavoriteStar from "./FavoriteStar";
-import InvestmentTrend from "./InvestmentTrend";
+import InvestmentCard from "./InvestmentCard";
+import LeagueBadges from "./LeagueBadges";
+
+function SkeletonCard() {
+  return (
+    <li className="best-investment-card best-investment-card-skeleton">
+      <div className="best-investment-card-header">
+        <div className="skeleton-block skeleton-image" />
+        <div className="best-investment-info">
+          <div className="skeleton-block skeleton-text skeleton-text-name" />
+        </div>
+      </div>
+      <div className="skeleton-block skeleton-chart" />
+      <div className="best-investment-versus-row">
+        <div className="skeleton-block skeleton-text skeleton-text-versus" />
+        <div className="skeleton-block skeleton-text skeleton-text-badge" />
+      </div>
+      <div className="best-investment-footer">
+        <div className="best-investment-change-group">
+          <div className="skeleton-block skeleton-text skeleton-text-change" />
+        </div>
+        <div className="skeleton-block skeleton-text skeleton-text-link" />
+      </div>
+    </li>
+  );
+}
 
 function BestInvestment({
   title,
@@ -13,6 +34,7 @@ function BestInvestment({
   investments,
   isLoading,
   skeletonCount,
+  pendingSkeletonCount = 0,
   currentDayOfLeague,
   daysBack,
   daysForward,
@@ -26,6 +48,12 @@ function BestInvestment({
   investments: BestInvestmentEntry[];
   isLoading: boolean;
   skeletonCount: number;
+  // Extra skeleton cards appended after the already-loaded ones — e.g. a
+  // favorite just pinned via search, whose data we don't have yet, while
+  // the rest of the list keeps showing what's already loaded. Distinct from
+  // the full-list skeleton below (isLoading && investments.length === 0),
+  // which is only for when nothing at all has loaded yet.
+  pendingSkeletonCount?: number;
   currentDayOfLeague: number;
   daysBack: number;
   daysForward: number;
@@ -36,10 +64,6 @@ function BestInvestment({
   // before anything's been pinned yet.
   extraContent?: ReactNode;
 }) {
-  const { leagues } = useMeta();
-  const leagueById = new Map(leagues.map((league) => [league.id, league]));
-  const fallbackLeagueName = leagues[0]?.name ?? "";
-
   // Skeletons are only for the true first load — once we already have data
   // (e.g. a refetch triggered by toggling a favorite, or nudging a filter),
   // keep showing it as-is while the new response comes in rather than
@@ -50,30 +74,10 @@ function BestInvestment({
       <section className="best-investment">
         <h2 className="best-investment-title">{title}</h2>
         {extraContent}
+        <LeagueBadges />
         <ul className="best-investment-grid" aria-hidden="true">
           {Array.from({ length: skeletonCount }).map((_, index) => (
-            <li
-              key={index}
-              className="best-investment-card best-investment-card-skeleton"
-            >
-              <div className="best-investment-card-header">
-                <div className="skeleton-block skeleton-image" />
-                <div className="best-investment-info">
-                  <span className="best-investment-name-row">
-                    <div className="skeleton-block skeleton-text skeleton-text-name" />
-                    <div className="skeleton-block skeleton-text skeleton-text-badge" />
-                  </span>
-                </div>
-              </div>
-              <div className="skeleton-block skeleton-chart" />
-              <div className="skeleton-block skeleton-text skeleton-text-versus" />
-              <div className="best-investment-footer">
-                <div className="best-investment-change-group">
-                  <div className="skeleton-block skeleton-text skeleton-text-change" />
-                </div>
-                <div className="skeleton-block skeleton-text skeleton-text-link" />
-              </div>
-            </li>
+            <SkeletonCard key={index} />
           ))}
         </ul>
         <p className="best-investment-caption">{caption}</p>
@@ -95,84 +99,21 @@ function BestInvestment({
     <section className="best-investment">
       <h2 className="best-investment-title">{title}</h2>
       {extraContent}
+      <LeagueBadges />
       <ul className="best-investment-grid">
         {investments.map((investment) => (
-          <li
+          <InvestmentCard
             key={`${investment.item.id}-${investment.pairId}`}
-            className="best-investment-card"
-          >
-            <FavoriteStar
-              isFavorite={isFavorite(investment.item.id, investment.pairId)}
-              onToggle={() =>
-                onToggleFavorite({
-                  category: investment.item.category,
-                  itemId: investment.item.id,
-                  pairId: investment.pairId,
-                })
-              }
-              itemName={investment.item.name}
-            />
-            <div className="best-investment-card-header">
-              <img
-                className="best-investment-image"
-                src={getImageUrl(investment.item.image)}
-                alt={investment.item.name}
-              />
-              <div className="best-investment-info">
-                <span className="best-investment-name-row">
-                  <span className="best-investment-name">
-                    {investment.item.name}
-                  </span>
-                  <span className="category-badge">
-                    {investment.item.category}
-                  </span>
-                </span>
-              </div>
-            </div>
-            <InvestmentTrend
-              leagueHistories={investment.leagueHistories}
-              pairName={investment.pairName}
-              pairImage={investment.pairImage}
-              currentDayOfLeague={currentDayOfLeague}
-              daysBack={daysBack}
-              daysForward={daysForward}
-            />
-            <span className="best-investment-versus">
-              {investment.pairName}
-            </span>
-            <div className="best-investment-footer">
-              <div className="best-investment-change-group">
-                <span
-                  className={`best-investment-change ${changeClass(investment.percentChange)}`}
-                >
-                  {formatPercentChange(investment.percentChange)}
-                </span>
-                {investment.leagueChanges.length > 1 && (
-                  <span className="best-investment-change-breakdown">
-                    {investment.leagueChanges.map(
-                      ({ leagueId, percentChange }) => (
-                        <span
-                          key={leagueId}
-                          className="best-investment-change-breakdown-item"
-                          style={{ color: leagueById.get(leagueId)?.color }}
-                        >
-                          {formatPercentChange(percentChange)}
-                        </span>
-                      ),
-                    )}
-                  </span>
-                )}
-              </div>
-              <a
-                className="best-investment-poe-ninja-link"
-                href={getPoeNinjaUrl(investment.item, fallbackLeagueName)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                poe.ninja ↗
-              </a>
-            </div>
-          </li>
+            investment={investment}
+            currentDayOfLeague={currentDayOfLeague}
+            daysBack={daysBack}
+            daysForward={daysForward}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+          />
+        ))}
+        {Array.from({ length: pendingSkeletonCount }).map((_, index) => (
+          <SkeletonCard key={`pending-${index}`} />
         ))}
       </ul>
       <p className="best-investment-caption">{caption}</p>

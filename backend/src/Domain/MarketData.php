@@ -112,27 +112,24 @@ final class MarketData
     }
 
     /**
-     * Percent change from daysBack days before currentDayOfLeague to
-     * daysForward days after it. Falls back to currentDayOfLeague itself as
-     * the start if there's no data that far back, so the change is still
-     * based on the future data available. Null only if even that isn't in
-     * the history.
+     * Percent change from currentDayOfLeague to daysForward days after it.
+     * Days before currentDayOfLeague are purely a chart-visualization
+     * concern (see getHistoryRowsInWindow) and never factor into this
+     * calculation — the window always starts exactly on the selected day.
+     * Null if either endpoint isn't in the history.
      */
-    public static function getWindowPercentChange(array $history, string $startDate, int $currentDayOfLeague, int $daysBack, int $daysForward): ?float
+    public static function getWindowPercentChange(array $history, string $startDate, int $currentDayOfLeague, int $daysForward): ?float
     {
         return self::windowPercentChangeFromRows(
             self::getAllHistoryRows($history, $startDate, $currentDayOfLeague),
             $currentDayOfLeague,
-            $daysBack,
             $daysForward,
         );
     }
 
-    private static function windowPercentChangeFromRows(array $rows, int $currentDayOfLeague, int $daysBack, int $daysForward): ?float
+    private static function windowPercentChangeFromRows(array $rows, int $currentDayOfLeague, int $daysForward): ?float
     {
-        $beforeRow = self::findRowByDay($rows, $currentDayOfLeague - $daysBack);
-        $currentRow = self::findRowByDay($rows, $currentDayOfLeague);
-        $startRow = $beforeRow ?? $currentRow;
+        $startRow = self::findRowByDay($rows, $currentDayOfLeague);
         $endRow = self::findRowByDay($rows, $currentDayOfLeague + $daysForward);
 
         if ($startRow === null || $endRow === null) {
@@ -220,16 +217,15 @@ final class MarketData
 
     /**
      * The best things to hold on currentDayOfLeague, based on the rate
-     * change from daysBack days before it to daysForward days after it,
-     * averaged across the given leagues. Only actual gains are included;
-     * losses are never "a best investment". Each item appears at most once,
-     * represented by its best-performing pair.
+     * change from currentDayOfLeague to daysForward days after it, averaged
+     * across the given leagues. Only actual gains are included; losses are
+     * never "a best investment". Each item appears at most once, represented
+     * by its best-performing pair.
      */
     public static function getBestInvestmentsForWindow(
         array $leagues,
         int $count,
         int $currentDayOfLeague,
-        int $daysBack,
         int $daysForward,
         float $minVolume,
     ): array {
@@ -291,7 +287,7 @@ final class MarketData
                         $volumes[] = $volume;
                     }
 
-                    $change = self::windowPercentChangeFromRows($rows, $currentDayOfLeague, $daysBack, $daysForward);
+                    $change = self::windowPercentChangeFromRows($rows, $currentDayOfLeague, $daysForward);
                     if ($change !== null) {
                         $leagueChanges[] = ['league' => $league, 'percentChange' => $change];
                     }
@@ -342,7 +338,6 @@ final class MarketData
         array $leagues,
         array $pins,
         int $currentDayOfLeague,
-        int $daysBack,
         int $daysForward,
     ): array {
         $itemEntriesByLeagueId = [];
@@ -382,7 +377,7 @@ final class MarketData
                 $leagueHistories[] = ['league' => $league, 'history' => $pair['history']];
 
                 $rows = self::getAllHistoryRows($pair['history'], $league['startDate'], $currentDayOfLeague);
-                $change = self::windowPercentChangeFromRows($rows, $currentDayOfLeague, $daysBack, $daysForward);
+                $change = self::windowPercentChangeFromRows($rows, $currentDayOfLeague, $daysForward);
                 if ($change !== null) {
                     $leagueChanges[] = ['league' => $league, 'percentChange' => $change];
                 }
@@ -397,6 +392,72 @@ final class MarketData
                 'pairId' => $pin['pairId'],
                 'percentChange' => self::average(array_map(fn(array $c): float => $c['percentChange'], $leagueChanges)),
                 'leagueChanges' => $leagueChanges,
+                'leagueHistories' => $leagueHistories,
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
+     * Every pair one item trades against, across the given leagues, each
+     * with its raw (unwindowed) per-league history plus its own windowed
+     * percent change — used to offer the other pairs a best-investment/
+     * favorite card's chart can switch to, with enough info (the percent
+     * change) to show which of them actually did best over the current
+     * window. Unlike getBestInvestmentsForWindow's ranking loop, this
+     * doesn't filter by minVolume or require a positive change: it's just
+     * "what data do we have", not "is this good enough to rank as a best
+     * investment".
+     */
+    public static function getAllPairsForItem(
+        array $leagues,
+        string $itemId,
+        int $currentDayOfLeague,
+        int $daysForward,
+    ): array {
+        $pairIds = [];
+        $entryByLeagueId = [];
+        foreach ($leagues as $league) {
+            foreach ($league['itemEntries'] as $entry) {
+                if ($entry['item']['id'] !== $itemId) {
+                    continue;
+                }
+                $entryByLeagueId[$league['id']] = $entry;
+                foreach ($entry['pairs'] as $pair) {
+                    if (!in_array($pair['id'], $pairIds, true)) {
+                        $pairIds[] = $pair['id'];
+                    }
+                }
+                break;
+            }
+        }
+
+        $results = [];
+        foreach ($pairIds as $pairId) {
+            $leagueHistories = [];
+            $changes = [];
+            foreach ($leagues as $league) {
+                $entry = $entryByLeagueId[$league['id']] ?? null;
+                if ($entry === null) {
+                    continue;
+                }
+                foreach ($entry['pairs'] as $pair) {
+                    if ($pair['id'] === $pairId) {
+                        $leagueHistories[] = ['league' => $league, 'history' => $pair['history']];
+
+                        $rows = self::getAllHistoryRows($pair['history'], $league['startDate'], $currentDayOfLeague);
+                        $change = self::windowPercentChangeFromRows($rows, $currentDayOfLeague, $daysForward);
+                        if ($change !== null) {
+                            $changes[] = $change;
+                        }
+                        break;
+                    }
+                }
+            }
+            $results[] = [
+                'pairId' => $pairId,
+                'percentChange' => self::average($changes),
                 'leagueHistories' => $leagueHistories,
             ];
         }

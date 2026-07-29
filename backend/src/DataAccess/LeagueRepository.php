@@ -205,18 +205,18 @@ final class LeagueRepository
      * only for the exact (category, itemId) pairs given — unlike
      * loadFiltered(), this ignores any category/pairCurrency selection
      * entirely, so a pinned/favorited item keeps showing regardless of the
-     * user's current filter selection. Each entry's pairs are narrowed to
-     * just that pin's own pairId.
+     * user's current filter selection. Each entry keeps *every* pair it has
+     * (not just the pin's own pairId) so callers can offer the other pairs
+     * too (see MarketData::getAllPairsForItem) — getInvestmentsForPins still
+     * only builds its main result from each pin's chosen pairId.
      *
      * @param array<int, array{category: string, itemId: string, pairId: string}> $pins
      */
     public function loadPinned(array $leagueIds, array $pins): array
     {
         $itemIdsByCategory = [];
-        $pairIdByItemId = [];
         foreach ($pins as $pin) {
             $itemIdsByCategory[$pin['category']][] = $pin['itemId'];
-            $pairIdByItemId[$pin['itemId']] = $pin['pairId'];
         }
 
         $result = [];
@@ -244,11 +244,6 @@ final class LeagueRepository
                     }
 
                     $entry['item']['category'] = $category;
-                    $wantedPairId = $pairIdByItemId[$entry['item']['id']];
-                    $entry['pairs'] = array_values(array_filter(
-                        $entry['pairs'],
-                        fn(array $pair): bool => $pair['id'] === $wantedPairId,
-                    ));
                     $itemEntries[] = $entry;
                 }
             }

@@ -27,17 +27,20 @@ export function formatTimeUntil(targetTimestamp: string): string {
   return 'less than a minute'
 }
 
-export function formatPercentChange(percentChange: number | null): string {
+// decimals defaults to 0 — every percent change display in the app is a
+// whole-number percent; pass a higher value only for somewhere that
+// specifically needs finer precision.
+export function formatPercentChange(percentChange: number | null, decimals = 0): string {
   if (percentChange === null) return '—'
   const sign = percentChange > 0 ? '+' : ''
   const magnitude = Math.abs(percentChange)
   const formatted =
     magnitude > 1000
       ? percentChange.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals,
         })
-      : percentChange.toFixed(2)
+      : percentChange.toFixed(decimals)
   return `${sign}${formatted}%`
 }
 

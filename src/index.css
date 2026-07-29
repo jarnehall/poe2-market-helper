@@ -68,6 +68,13 @@
 body {
   margin: 0;
   min-height: 100vh;
+  /* .app-header's width: 100vw full-bleed trick overshoots the real visible
+     width by however wide the vertical scrollbar is — most browsers compute
+     100vw as if there were no scrollbar at all, so the header's right edge
+     lands a few pixels past the actual content area. That's invisible on
+     its own (just background color), but without this it drags the whole
+     page into being horizontally scrollable to reveal it. */
+  overflow-x: hidden;
   /* A soft glow standing in for the old hero-art background — depth
      without a busy photo competing with the content. */
   background:
@@ -76,7 +83,7 @@ body {
 }
 
 #root {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 24px 48px;
   box-sizing: border-box;

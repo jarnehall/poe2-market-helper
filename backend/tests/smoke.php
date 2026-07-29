@@ -98,19 +98,20 @@ check(
     'a startDate with a non-midnight launch time (19:00Z on Jan 1) gives day 1 to the Jan 2 00:00 entry (the first midnight after launch) and day 3 to Jan 4 — not day 0/2, which comparing against Jan 1\'s own midnight would (wrongly) give',
 );
 
-// --- getWindowPercentChange: falls back to currentDayOfLeague when there's no data far enough back ---
+// --- getWindowPercentChange: window always starts exactly at currentDayOfLeague ---
+// --- (days before it are a chart-visualization concern only — see           ---
+// --- getHistoryRowsInWindow — and never factor into this calculation at all) ---
 
-$fallbackChange = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 3, daysBack: 2, daysForward: 2);
-// currentDayOfLeague(3) - daysBack(2) = day 1, which DOES exist here, so this
-// first case exercises the normal (non-fallback) path: day1(90) -> day5(110).
-check(closeTo($fallbackChange, 22.222), 'window change day1->day5 (90 to 110) is ~22.22%');
+$forwardChange = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 3, daysForward: 2);
+check(closeTo($forwardChange, 10.0), 'window change day3->day5 (100 to 110) is 10%');
 
-$noDataFarBack = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 3, daysBack: 5, daysForward: 2);
-// currentDayOfLeague(3) - daysBack(5) = day -2, which doesn't exist, so this
-// falls back to day 3 (100) itself as the start -> day5 (110).
-check(closeTo($noDataFarBack, 10.0), 'falls back to currentDayOfLeague as the start when daysBack overshoots available history');
+$noStartData = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 2, daysForward: 3);
+// Day 2 doesn't exist in $history (only 1, 3, 5 do) — there's no fallback to
+// a nearby day (e.g. day 1) the way the old daysBack-based start used to
+// fall back; a missing start day is simply null.
+check($noStartData === null, 'returns null (no fallback to a nearby day) when currentDayOfLeague itself has no data');
 
-$noEndData = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 3, daysBack: 2, daysForward: 100);
+$noEndData = MarketData::getWindowPercentChange($history, startDate: $leagueStart, currentDayOfLeague: 3, daysForward: 100);
 check($noEndData === null, 'returns null when the window end day has no data at all');
 
 // --- getBestInvestmentsForWindow: keeps only the best-performing pair per item ---
@@ -125,20 +126,29 @@ $league = [
         'pairs' => [
             [
                 'id' => 'divine',
-                'rate' => 20.0,
+                'rate' => 40.0,
                 'volumePrimaryValue' => 100,
                 'history' => [
+                    // day 5 (the window end, currentDayOfLeague + daysForward below).
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 40.0, 'volumePrimaryValue' => 100],
+                    // day 3 (currentDayOfLeague itself — the window start).
                     ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 20.0, 'volumePrimaryValue' => 100],
-                    ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 10.0, 'volumePrimaryValue' => 100],
+                    // day 1: before currentDayOfLeague, so this rate must be
+                    // completely ignored by the window calculation — only
+                    // here to guard against a regression of the old
+                    // daysBack-picks-the-start bug (if it were wrongly used,
+                    // 5 -> 40 would give +700%, not +100%).
+                    ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 5.0, 'volumePrimaryValue' => 100],
                 ],
             ],
             [
                 'id' => 'exalted',
-                'rate' => 12.0,
+                'rate' => 14.4,
                 'volumePrimaryValue' => 100,
                 'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 14.4, 'volumePrimaryValue' => 100],
                     ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 12.0, 'volumePrimaryValue' => 100],
-                    ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 10.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 3.0, 'volumePrimaryValue' => 100],
                 ],
             ],
         ],
@@ -158,19 +168,33 @@ $best = MarketData::getBestInvestmentsForWindow(
     [$league],
     count: 10,
     currentDayOfLeague: 3,
-    daysBack: 2,
-    daysForward: 0,
+    daysForward: 2,
     minVolume: 0,
 );
 
 check(count($best) === 1, 'one item with two candidate pairs yields exactly one ranked investment');
 check(($best[0]['item']['id'] ?? null) === 'chaos', 'the ranked investment is for the right item');
 check(($best[0]['pairId'] ?? null) === 'divine', 'the higher-performing pair (divine, +100%) is kept over the lower one (exalted, +20%)');
-check(closeTo($best[0]['percentChange'] ?? null, 100.0), 'the kept pair\'s percent change is the divine pair\'s own window change');
+check(closeTo($best[0]['percentChange'] ?? null, 100.0), 'the kept pair\'s percent change is the divine pair\'s own window change (day3->day5, ignoring day1)');
 
 check(MarketData::getPairDisplayName('exalted', [$league]) === 'Exalted Orb', 'getPairDisplayName resolves a pair id via core.items');
 check(MarketData::getPairImage('exalted', [$league]) === '/exalted.png', 'getPairImage resolves a pair id via core.items');
 check(MarketData::getPairDisplayName('unknown-pair', [$league]) === 'unknown-pair', 'getPairDisplayName falls back to the raw id when not found');
+
+// --- getAllPairsForItem: every pair an item has data for, not just the ranked winner ---
+
+$allPairs = MarketData::getAllPairsForItem([$league], 'chaos', currentDayOfLeague: 3, daysForward: 2);
+$allPairIds = array_map(fn(array $pair): string => $pair['pairId'], $allPairs);
+$allPairsById = [];
+foreach ($allPairs as $pair) {
+    $allPairsById[$pair['pairId']] = $pair;
+}
+
+check(count($allPairs) === 2, 'getAllPairsForItem returns both of chaos\'s pairs, not just the ranked winner (divine)');
+check(in_array('divine', $allPairIds, true) && in_array('exalted', $allPairIds, true), 'both divine and exalted are present');
+check(closeTo($allPairsById['divine']['percentChange'] ?? null, 100.0), 'each pair carries its own windowed percent change (divine, +100%) — not just the ranked winner\'s');
+check(closeTo($allPairsById['exalted']['percentChange'] ?? null, 20.0), 'exalted keeps its own (lower, non-winning) percent change too, unlike getBestInvestmentsForWindow which would discard it');
+check(MarketData::getAllPairsForItem([$league], 'unknown-item', currentDayOfLeague: 3, daysForward: 2) === [], 'an item with no entry in any league yields no pairs at all');
 
 // --- getInvestmentsForPins: favorites/pins bypass ranking, unlike getBestInvestmentsForWindow ---
 
@@ -192,8 +216,7 @@ $pinned = MarketData::getInvestmentsForPins(
     [$league, $otherLeague],
     $pins,
     currentDayOfLeague: 3,
-    daysBack: 2,
-    daysForward: 0,
+    daysForward: 2,
 );
 
 check(count($pinned) === 2, 'a pin for an item missing from every league is skipped entirely (2 of 3 pins resolve)');
@@ -217,7 +240,6 @@ $noWindowData = MarketData::getInvestmentsForPins(
     [$league],
     [['category' => 'Currency', 'itemId' => 'chaos', 'pairId' => 'divine']],
     currentDayOfLeague: 3,
-    daysBack: 0,
     daysForward: 100,
 );
 check(

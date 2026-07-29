@@ -11,6 +11,7 @@ export function getImageUrl(imagePath: string): string {
 // entry here for any category that doesn't follow the simple pattern.
 const POE_NINJA_CATEGORY_SLUGS: Record<string, string> = {
   'Lineage Gems': 'lineage-support-gems',
+  Abyss: 'abyssal-bones',
 }
 
 // The poe.ninja economy page for an item, always under the current league

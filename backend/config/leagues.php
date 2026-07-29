@@ -26,7 +26,7 @@ declare(strict_types=1);
 // being tracked some days after the league itself launched, no rows at all
 // until whichever day its own history actually begins.
 return [
-    ['id' => 'runes-of-aldur', 'name' => 'Runes of Aldur', 'color' => '#2c8ed4', 'folder' => null],
-    ['id' => 'fate-of-the-vaal', 'name' => 'Fate of the Vaal', 'color' => '#d94a4a', 'folder' => 'fate-of-the-vaal', 'startDate' => '2025-12-12T19:00:00Z'],
-    ['id' => 'rise-of-the-abyssal', 'name' => 'Rise of the Abyssal', 'color' => '#3fae5f', 'folder' => 'rise-of-the-abyssal', 'startDate' => '2025-08-29T20:00:00Z'],
+    ['id' => 'runes-of-aldur', 'name' => 'Runes of Aldur', 'color' => '#dac74d', 'folder' => null],
+    ['id' => 'fate-of-the-vaal', 'name' => 'Fate of the Vaal', 'color' => '#af15a3', 'folder' => 'fate-of-the-vaal', 'startDate' => '2025-12-12T19:00:00Z'],
+    ['id' => 'rise-of-the-abyssal', 'name' => 'Rise of the Abyssal', 'color' => '#28bc9c', 'folder' => 'rise-of-the-abyssal', 'startDate' => '2025-08-29T20:00:00Z'],
 ];

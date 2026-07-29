@@ -15,6 +15,15 @@ function DaySpanSlider() {
   const trackRef = useRef<HTMLDivElement>(null);
   const [draggingHandle, setDraggingHandle] = useState<Handle | null>(null);
 
+  // Drive the thumbs/label while dragging so the slider itself feels
+  // instant — the committed daysBack/daysForward (which the chart's data
+  // window is keyed on) only update once the drag/keypress ends, so the
+  // graphs don't reflow on every intermediate pointer position.
+  const [draftDaysBack, setDraftDaysBack] = useState(daysBack);
+  const [draftDaysForward, setDraftDaysForward] = useState(daysForward);
+  useEffect(() => setDraftDaysBack(daysBack), [daysBack]);
+  useEffect(() => setDraftDaysForward(daysForward), [daysForward]);
+
   const domainMin = -maxDaysBack;
   const domainMax = maxDaysForward;
   const domainRange = domainMax - domainMin || 1;
@@ -33,13 +42,19 @@ function DaySpanSlider() {
     return Math.round(domainMin + (percent / 100) * domainRange);
   };
 
-  const moveHandle = (handle: Handle, value: number) => {
+  // `commit` is false for every intermediate position while dragging (only
+  // the draft/visual state moves) and true for the final position once the
+  // drag/keypress ends (when the committed filters — and the chart — should
+  // actually update).
+  const moveHandle = (handle: Handle, value: number, commit: boolean) => {
     if (handle === "before") {
       const clamped = Math.min(Math.max(value, -maxDaysBack), 0);
-      setDaysBack(-clamped);
+      setDraftDaysBack(-clamped);
+      if (commit) setDaysBack(-clamped);
     } else {
       const clamped = Math.min(Math.max(value, 0), maxDaysForward);
-      setDaysForward(clamped);
+      setDraftDaysForward(clamped);
+      if (commit) setDaysForward(clamped);
     }
   };
 
@@ -50,9 +65,12 @@ function DaySpanSlider() {
     if (!draggingHandle) return;
 
     const handlePointerMove = (event: PointerEvent) => {
-      moveHandle(draggingHandle, valueForClientX(event.clientX));
+      moveHandle(draggingHandle, valueForClientX(event.clientX), false);
     };
-    const stopDragging = () => setDraggingHandle(null);
+    const stopDragging = (event: PointerEvent) => {
+      moveHandle(draggingHandle, valueForClientX(event.clientX), true);
+      setDraggingHandle(null);
+    };
 
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", stopDragging);
@@ -71,24 +89,24 @@ function DaySpanSlider() {
     const value = valueForClientX(event.clientX);
     const handle: Handle = value <= 0 ? "before" : "after";
     setDraggingHandle(handle);
-    moveHandle(handle, value);
+    moveHandle(handle, value, false);
   };
 
   const handleKeyDown =
     (handle: Handle, domainValue: number) => (event: KeyboardEvent) => {
       if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
         event.preventDefault();
-        moveHandle(handle, domainValue - 1);
+        moveHandle(handle, domainValue - 1, true);
       } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
         event.preventDefault();
-        moveHandle(handle, domainValue + 1);
+        moveHandle(handle, domainValue + 1, true);
       }
     };
 
   return (
     <div className="day-span-slider">
       <span className="day-span-slider-label">
-        {daysBack} days before → {daysForward} days after
+        {draftDaysBack} days before → {draftDaysForward} days after
       </span>
       <div
         className="day-span-slider-track"
@@ -98,8 +116,8 @@ function DaySpanSlider() {
         <div
           className="day-span-slider-range"
           style={{
-            left: `${valueToPercent(-daysBack)}%`,
-            right: `${100 - valueToPercent(daysForward)}%`,
+            left: `${valueToPercent(-draftDaysBack)}%`,
+            right: `${100 - valueToPercent(draftDaysForward)}%`,
           }}
         />
         <div
@@ -108,24 +126,24 @@ function DaySpanSlider() {
         />
         <div
           className="day-span-slider-thumb day-span-slider-thumb-before"
-          style={{ left: `${valueToPercent(-daysBack)}%` }}
+          style={{ left: `${valueToPercent(-draftDaysBack)}%` }}
           role="slider"
           tabIndex={0}
-          aria-label={`Days before: ${daysBack}`}
+          aria-label={`Days before: ${draftDaysBack}`}
           aria-valuemin={0}
           aria-valuemax={maxDaysBack}
-          aria-valuenow={daysBack}
+          aria-valuenow={draftDaysBack}
           onKeyDown={handleKeyDown("before", -daysBack)}
         />
         <div
           className="day-span-slider-thumb day-span-slider-thumb-after"
-          style={{ left: `${valueToPercent(daysForward)}%` }}
+          style={{ left: `${valueToPercent(draftDaysForward)}%` }}
           role="slider"
           tabIndex={0}
-          aria-label={`Days after: ${daysForward}`}
+          aria-label={`Days after: ${draftDaysForward}`}
           aria-valuemin={0}
           aria-valuemax={maxDaysForward}
-          aria-valuenow={daysForward}
+          aria-valuenow={draftDaysForward}
           onKeyDown={handleKeyDown("after", daysForward)}
         />
       </div>

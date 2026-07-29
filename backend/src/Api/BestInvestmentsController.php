@@ -86,13 +86,14 @@ final class BestInvestmentsController
             $leagues,
             $count,
             $currentDayOfLeague,
-            $daysBack,
             $daysForward,
             $minVolume,
         );
 
+        $investments = $this->payloadBuilder->attachAlternatePairs($investments, $leagues, $currentDayOfLeague, $daysForward);
+
         $liveDataChecked = $this->payloadBuilder->shouldCheckLiveLeague($investments, $leagueIds);
-        $investments = $this->payloadBuilder->augmentWithLiveLeague($investments, $leagueIds, $currentDayOfLeague, $daysBack, $daysForward);
+        $investments = $this->payloadBuilder->augmentWithLiveLeague($investments, $leagueIds);
 
         JsonResponse::send([
             'investments' => array_map(

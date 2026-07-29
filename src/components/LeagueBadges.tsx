@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { useLeague } from '../context/LeagueContext'
+import Tooltip from './Tooltip'
 
 function LeagueBadges() {
   const { liveLeague, selectedLeagues } = useLeague()
@@ -13,20 +14,23 @@ function LeagueBadges() {
   return (
     <div className="league-filter-badges" aria-label="Selected leagues">
       {badgeLeagues.map((league) => (
-        <span
+        <Tooltip
           key={league.id}
-          className="league-filter-badge"
-          style={{ '--league-color': league.color } as CSSProperties}
-          title={
+          text={
             league.isLive
               ? `${league.name} is the current league — always shown as a live overlay, not a selectable data source`
               : undefined
           }
         >
-          <span className="league-filter-badge-dot" />
-          {league.name}
-          {league.isLive && <span className="league-filter-current-tag">Current</span>}
-        </span>
+          <span
+            className="league-filter-badge"
+            style={{ '--league-color': league.color } as CSSProperties}
+          >
+            <span className="league-filter-badge-dot" />
+            <span className="league-filter-badge-name">{league.name}</span>
+            {league.isLive && <span className="league-filter-current-tag">Current</span>}
+          </span>
+        </Tooltip>
       ))}
     </div>
   )

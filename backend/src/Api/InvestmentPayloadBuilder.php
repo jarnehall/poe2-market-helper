@@ -30,6 +30,35 @@ final class InvestmentPayloadBuilder
     }
 
     /**
+     * Attaches every pair each investment's item has data for (per
+     * MarketData::getAllPairsForItem), alongside its already-resolved
+     * "best"/pinned pair — lets the frontend offer buttons to switch a
+     * card's chart to a different pair without a refetch, each labeled with
+     * its own windowed percent change so it's clear at a glance which pair
+     * actually did best over the current window. Must run before
+     * augmentWithLiveLeague, so the live-league overlay below can also apply
+     * to these alternate pairs, not just the main one.
+     */
+    public function attachAlternatePairs(
+        array $investments,
+        array $leagues,
+        int $currentDayOfLeague,
+        int $daysForward,
+    ): array {
+        foreach ($investments as &$investment) {
+            $investment['pairs'] = MarketData::getAllPairsForItem(
+                $leagues,
+                $investment['item']['id'],
+                $currentDayOfLeague,
+                $daysForward,
+            );
+        }
+        unset($investment);
+
+        return $investments;
+    }
+
+    /**
      * The current, still-running league (if selected) never participates in
      * ranking/pin-resolution itself — its data isn't in $leagues at all,
      * since it has no static data/ folder (see LeagueRepository). Instead,
@@ -41,13 +70,8 @@ final class InvestmentPayloadBuilder
      * live league was never actually selected, so its own "growth" isn't a
      * meaningful data point there, only the leagues the user picked are.
      */
-    public function augmentWithLiveLeague(
-        array $investments,
-        array $leagueIds,
-        int $currentDayOfLeague,
-        int $daysBack,
-        int $daysForward,
-    ): array {
+    public function augmentWithLiveLeague(array $investments, array $leagueIds): array
+    {
         $liveLeagueId = $this->currentLeagueInfo['id'] ?? null;
         if ($liveLeagueId === null || $investments === [] || !in_array($liveLeagueId, $leagueIds, true)) {
             return $investments;
@@ -73,23 +97,46 @@ final class InvestmentPayloadBuilder
                 continue;
             }
 
-            $livePair = null;
-            foreach ($liveEntry['pairs'] as $candidate) {
-                if ($candidate['id'] === $investment['pairId']) {
-                    $livePair = $candidate;
-                    break;
-                }
-            }
-            if ($livePair === null) {
-                continue;
+            $liveLeagueStub = ['id' => $liveLeagueId, 'startDate' => $this->currentLeagueInfo['startDate']];
+
+            $livePair = self::findPairById($liveEntry['pairs'], $investment['pairId']);
+            if ($livePair !== null) {
+                $investment['leagueHistories'][] = ['league' => $liveLeagueStub, 'history' => $livePair['history']];
             }
 
-            $liveLeagueStub = ['id' => $liveLeagueId, 'startDate' => $this->currentLeagueInfo['startDate']];
-            $investment['leagueHistories'][] = ['league' => $liveLeagueStub, 'history' => $livePair['history']];
+            // Same overlay, applied to every alternate pair too (see
+            // attachAlternatePairs) — otherwise switching a card's chart to
+            // another pair while the live league is selected would silently
+            // drop that overlay line for it. Bound to a real reference
+            // variable first — `foreach ($investment['pairs'] ?? [] as &$x)`
+            // would iterate a disconnected copy, since `??` produces a new
+            // value rather than an alias to the original array, silently
+            // discarding every mutation made through `&$x`.
+            if (isset($investment['pairs'])) {
+                $pairs = &$investment['pairs'];
+                foreach ($pairs as &$altPair) {
+                    $altLivePair = self::findPairById($liveEntry['pairs'], $altPair['pairId']);
+                    if ($altLivePair !== null) {
+                        $altPair['leagueHistories'][] = ['league' => $liveLeagueStub, 'history' => $altLivePair['history']];
+                    }
+                }
+                unset($altPair, $pairs);
+            }
         }
         unset($investment);
 
         return $investments;
+    }
+
+    private static function findPairById(array $pairs, string $pairId): ?array
+    {
+        foreach ($pairs as $pair) {
+            if ($pair['id'] === $pairId) {
+                return $pair;
+            }
+        }
+
+        return null;
     }
 
     public function toPayload(array $investment, array $leagues, int $currentDayOfLeague, int $daysBack, int $daysForward): array
@@ -104,20 +151,52 @@ final class InvestmentPayloadBuilder
                 fn(array $change): array => ['leagueId' => $change['league']['id'], 'percentChange' => $change['percentChange']],
                 $investment['leagueChanges'],
             ),
-            'leagueHistories' => array_map(
-                fn(array $leagueHistory): array => [
-                    'leagueId' => $leagueHistory['league']['id'],
-                    'rows' => $this->windowRows(
-                        $leagueHistory['history'],
-                        $leagueHistory['league']['startDate'],
+            'leagueHistories' => $this->windowedLeagueHistories(
+                $investment['leagueHistories'],
+                $currentDayOfLeague,
+                $daysBack,
+                $daysForward,
+            ),
+            // Every pair this item has data for (see attachAlternatePairs) —
+            // lets the frontend switch a card's chart between them without a
+            // refetch, each with its own windowed percentChange so the
+            // switcher buttons can show which pair actually improved most.
+            // No per-league leagueChanges breakdown here, unlike the ranked/
+            // pinned pair above — that breakdown is specifically about which
+            // *leagues* agree, not relevant to "which pair is this".
+            'pairs' => array_map(
+                fn(array $pair): array => [
+                    'pairId' => $pair['pairId'],
+                    'pairName' => MarketData::getPairDisplayName($pair['pairId'], $leagues),
+                    'pairImage' => MarketData::getPairImage($pair['pairId'], $leagues),
+                    'percentChange' => $pair['percentChange'],
+                    'leagueHistories' => $this->windowedLeagueHistories(
+                        $pair['leagueHistories'],
                         $currentDayOfLeague,
                         $daysBack,
                         $daysForward,
                     ),
                 ],
-                $investment['leagueHistories'],
+                $investment['pairs'] ?? [],
             ),
         ];
+    }
+
+    private function windowedLeagueHistories(array $leagueHistories, int $currentDayOfLeague, int $daysBack, int $daysForward): array
+    {
+        return array_map(
+            fn(array $leagueHistory): array => [
+                'leagueId' => $leagueHistory['league']['id'],
+                'rows' => $this->windowRows(
+                    $leagueHistory['history'],
+                    $leagueHistory['league']['startDate'],
+                    $currentDayOfLeague,
+                    $daysBack,
+                    $daysForward,
+                ),
+            ],
+            $leagueHistories,
+        );
     }
 
     public function poeNinjaStatus(bool $checked): array

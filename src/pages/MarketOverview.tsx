@@ -6,7 +6,6 @@ import DayOfLeagueSlider from "../components/DayOfLeagueSlider";
 import DaySpanSlider from "../components/DaySpanSlider";
 import FavoritesSearch from "../components/FavoritesSearch";
 import InvestmentCountSlider from "../components/InvestmentCountSlider";
-import LeagueBadges from "../components/LeagueBadges";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
 import PairCurrencyFilter from "../components/PairCurrencyFilter";
@@ -58,6 +57,27 @@ function MarketOverview() {
   const [favoriteInvestments, setFavoriteInvestments] = useState<BestInvestmentEntry[]>([]);
   const [favoritesStatus, setFavoritesStatus] = useState<QueryStatus>("loading");
 
+  // The day window actually reflected in `investments`/`favoriteInvestments`
+  // right now — deliberately NOT the same as `filters`. A chart's x-axis
+  // domain is derived from currentDayOfLeague/daysBack/daysForward, while
+  // its plotted points come from leagueHistories (server data for whatever
+  // window was last fetched) — if the axis switched to the new window the
+  // instant a slider is released, but the fetch for that window hasn't
+  // resolved yet, old points would get mapped onto a domain they were never
+  // computed for and render far outside the card. These only advance once
+  // the matching response actually lands, so the axis and the data it's
+  // scaling always describe the same window.
+  const [appliedWindow, setAppliedWindow] = useState(() => ({
+    currentDayOfLeague: filters.currentDayOfLeague,
+    daysBack: filters.daysBack,
+    daysForward: filters.daysForward,
+  }));
+  const [appliedFavoritesWindow, setAppliedFavoritesWindow] = useState(() => ({
+    currentDayOfLeague: filters.currentDayOfLeague,
+    daysBack: filters.daysBack,
+    daysForward: filters.daysForward,
+  }));
+
   useEffect(() => {
     const controller = new AbortController();
     setStatus("loading");
@@ -81,6 +101,11 @@ function MarketOverview() {
           setPoeNinjaStatus(response.poeNinjaStatus);
           setStatus("success");
           setErrorMessage(null);
+          setAppliedWindow({
+            currentDayOfLeague: filters.currentDayOfLeague,
+            daysBack: filters.daysBack,
+            daysForward: filters.daysForward,
+          });
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") return;
@@ -95,10 +120,40 @@ function MarketOverview() {
     };
   }, [filters, selectedLeagueIds, liveLeague]);
 
+  // Starring/unstarring a card already shown in Best investments doesn't
+  // need a round trip at all — we already have that exact item+pair's data
+  // right here. This keeps favoriting instant for that common case; the
+  // debounced fetch below still runs right after as the authoritative
+  // source (needed for e.g. a favorite pinned via search, which has no
+  // locally-known data yet, or when the day window/leagues change).
+  useEffect(() => {
+    setFavoriteInvestments((current) => {
+      const favoriteKeys = new Set(favorites.map((f) => `${f.itemId}::${f.pairId}`));
+      const kept = current.filter((inv) => favoriteKeys.has(`${inv.item.id}::${inv.pairId}`));
+
+      const keptKeys = new Set(kept.map((inv) => `${inv.item.id}::${inv.pairId}`));
+      const newlyAvailable = investments.filter(
+        (inv) =>
+          favoriteKeys.has(`${inv.item.id}::${inv.pairId}`) && !keptKeys.has(`${inv.item.id}::${inv.pairId}`),
+      );
+
+      if (kept.length === current.length && newlyAvailable.length === 0) {
+        return current;
+      }
+
+      return [...kept, ...newlyAvailable];
+    });
+  }, [favorites, investments]);
+
   useEffect(() => {
     if (favorites.length === 0) {
       setFavoriteInvestments([]);
       setFavoritesStatus("success");
+      setAppliedFavoritesWindow({
+        currentDayOfLeague: filters.currentDayOfLeague,
+        daysBack: filters.daysBack,
+        daysForward: filters.daysForward,
+      });
       return;
     }
 
@@ -119,6 +174,11 @@ function MarketOverview() {
         .then((response) => {
           setFavoriteInvestments(response.investments);
           setFavoritesStatus("success");
+          setAppliedFavoritesWindow({
+            currentDayOfLeague: filters.currentDayOfLeague,
+            daysBack: filters.daysBack,
+            daysForward: filters.daysForward,
+          });
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") return;
@@ -180,6 +240,17 @@ function MarketOverview() {
   const leagueHasStarted =
     new Date(currentLeague.startDate).getTime() <= Date.now();
   const hasPoeNinjaFailures = (poeNinjaStatus?.failedItemIds.length ?? 0) > 0;
+
+  // Favorites not yet resolved locally (see the reconciling effect above) —
+  // typically one pinned via search, whose data isn't already sitting in
+  // `investments`. Rendered as trailing skeleton cards so there's still
+  // instant feedback instead of a silent ~1s wait for the fetch.
+  const loadedFavoriteKeys = new Set(
+    favoriteInvestments.map((inv) => `${inv.item.id}::${inv.pairId}`),
+  );
+  const pendingFavoritesCount = favorites.filter(
+    (favorite) => !loadedFavoriteKeys.has(`${favorite.itemId}::${favorite.pairId}`),
+  ).length;
 
   return (
     <>
@@ -289,11 +360,8 @@ function MarketOverview() {
       </header>
       <main className="market-overview">
         <header className="league-banner">
-          <h1 className="league-banner-name">{currentLeague.name} league</h1>
-          <p
-            className="league-banner-started"
-            title={leagueHasStarted ? "Live" : "Upcoming"}
-          >
+          <h1 className="league-banner-name">{currentLeague.name}</h1>
+          <p className="league-banner-started">
             <span
               className={
                 leagueHasStarted
@@ -301,23 +369,28 @@ function MarketOverview() {
                   : "league-banner-started-dot"
               }
             />
-            {leagueHasStarted
-              ? `Started ${formatDate(currentLeague.startDate)}`
-              : `Starts ${formatDate(currentLeague.startDate)} (in ${formatTimeUntil(currentLeague.startDate)})`}
+            <span className="league-banner-started-text">
+              {leagueHasStarted
+                ? `Started ${formatDate(currentLeague.startDate)}`
+                : `Starts ${formatDate(currentLeague.startDate)} (in ${formatTimeUntil(currentLeague.startDate)})`}
+            </span>
+          </p>
+          <p className="league-banner-started">
+            <span className="league-banner-started-text">Day {filters.currentDayOfLeague}</span>
           </p>
         </header>
-        <LeagueBadges />
         {favoritesStatus !== "error" && (
           <BestInvestment
             title="Favorites"
-            caption={`Rate change from day ${filters.currentDayOfLeague - filters.daysBack} to day ${filters.currentDayOfLeague + filters.daysForward}.`}
+            caption={`Rate change from day ${filters.currentDayOfLeague} to day ${filters.currentDayOfLeague + filters.daysForward}.`}
             emptyMessage=""
             investments={favoriteInvestments}
             isLoading={favoritesStatus === "loading"}
             skeletonCount={favorites.length}
-            currentDayOfLeague={filters.currentDayOfLeague}
-            daysBack={filters.daysBack}
-            daysForward={filters.daysForward}
+            pendingSkeletonCount={pendingFavoritesCount}
+            currentDayOfLeague={appliedFavoritesWindow.currentDayOfLeague}
+            daysBack={appliedFavoritesWindow.daysBack}
+            daysForward={appliedFavoritesWindow.daysForward}
             isFavorite={isFavorite}
             onToggleFavorite={toggleFavorite}
             extraContent={<FavoritesSearch />}
@@ -341,14 +414,14 @@ function MarketOverview() {
                 of the league
               </>
             }
-            caption={`Based on the rate change from day ${filters.currentDayOfLeague - filters.daysBack} to day ${filters.currentDayOfLeague + filters.daysForward}.`}
+            caption={`Based on the rate change from day ${filters.currentDayOfLeague} to day ${filters.currentDayOfLeague + filters.daysForward}.`}
             emptyMessage="No investment is good right now."
             investments={investments}
             isLoading={status === "loading"}
             skeletonCount={filters.investmentCount}
-            currentDayOfLeague={filters.currentDayOfLeague}
-            daysBack={filters.daysBack}
-            daysForward={filters.daysForward}
+            currentDayOfLeague={appliedWindow.currentDayOfLeague}
+            daysBack={appliedWindow.daysBack}
+            daysForward={appliedWindow.daysForward}
             isFavorite={isFavorite}
             onToggleFavorite={toggleFavorite}
           />

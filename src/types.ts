@@ -73,6 +73,21 @@ export interface LeagueHistoryRows {
   rows: HistoryRow[]
 }
 
+// One alternate pair a card's chart can switch to — just enough to redraw
+// InvestmentTrend with a different pair, plus its own windowed
+// percentChange so the switcher buttons can show which pair actually did
+// best (nullable for the same reason as BestInvestment's own — no data at
+// all in the current window). No per-league leagueChanges breakdown here,
+// unlike BestInvestment itself: that's about which *leagues* agree, not
+// relevant to picking a pair.
+export interface InvestmentPair {
+  pairId: string
+  pairName: string
+  pairImage: string | null
+  percentChange: number | null
+  leagueHistories: LeagueHistoryRows[]
+}
+
 export interface BestInvestment {
   item: MarketItem
   pairId: string
@@ -83,6 +98,9 @@ export interface BestInvestment {
   percentChange: number | null
   leagueChanges: LeagueChange[]
   leagueHistories: LeagueHistoryRows[]
+  // Every pair this item has data for, including this one — lets a card
+  // offer buttons to switch its chart to a different pair client-side.
+  pairs: InvestmentPair[]
 }
 
 export interface FavoriteItem {
