@@ -12,6 +12,7 @@ declare(strict_types=1);
 return [
     'minDayOfLeague' => 1,
     'minWindowDays' => 0,
+    'maxWindowDays' => 10,
     'defaultDaysBack' => 2,
     'defaultDaysForward' => 3,
     'minBestInvestmentCount' => 3,

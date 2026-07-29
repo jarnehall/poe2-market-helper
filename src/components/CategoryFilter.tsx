@@ -3,7 +3,7 @@ import { useMeta } from '../context/MetaContext'
 
 function CategoryFilter() {
   const { categories } = useMeta()
-  const { draft, toggleDraftCategory } = useFilters()
+  const { filters, toggleCategory } = useFilters()
 
   return (
     <div className="category-filter">
@@ -14,7 +14,7 @@ function CategoryFilter() {
         aria-label="Categories"
       >
         {categories.map((category) => {
-          const isSelected = draft.categories.includes(category)
+          const isSelected = filters.categories.includes(category)
           return (
             <button
               key={category}
@@ -25,7 +25,7 @@ function CategoryFilter() {
                   ? 'category-filter-button category-filter-button-active'
                   : 'category-filter-button'
               }
-              onClick={() => toggleDraftCategory(category)}
+              onClick={() => toggleCategory(category)}
             >
               {category}
             </button>

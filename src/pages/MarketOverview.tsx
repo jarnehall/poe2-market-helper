@@ -15,30 +15,28 @@ import { useFilters } from "../context/FiltersContext";
 import { useLeague } from "../context/LeagueContext";
 import { useMeta } from "../context/MetaContext";
 import { fetchBestInvestments, fetchFavorites } from "../lib/api";
-import { formatIsoDate, formatTimeUntil } from "../lib/format";
+import { formatDate, formatTimeUntil } from "../lib/format";
 import type { BestInvestment as BestInvestmentEntry, PoeNinjaStatus } from "../types";
 
 type QueryStatus = "loading" | "error" | "success";
 
+// Dragging a slider fires a state update (and would otherwise fire a
+// request) per intermediate value, not just on release — this delays the
+// actual network call until the filters stop changing for a moment, so a
+// drag collapses into a single request instead of dozens.
+const FETCH_DEBOUNCE_MS = 350;
+
 function MarketOverview() {
   const { currentLeague, bounds, visitorCount } = useMeta();
   const { selectedLeagueIds, liveLeague } = useLeague();
-  const { favorites, isFavorite, toggleFavorite } = useFavorites();
+  const { favorites, toggleFavorite } = useFavorites();
   // The live league is never one of the selectable/toggleable leagues (see
   // LeagueContext), but its data is still always requested as a display-only
   // overlay — the backend only adds it when its id is present in `leagues`.
   const requestLeagueIds = liveLeague
     ? [...selectedLeagueIds, liveLeague.id]
     : selectedLeagueIds;
-  const {
-    draft,
-    applied,
-    isDirty,
-    setDraftInvestmentCount,
-    setDraftMinVolume,
-    applyFilters,
-    resetFilters,
-  } = useFilters();
+  const { filters, setInvestmentCount, setMinVolume, resetFilters } = useFilters();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filtersMenuRef = useRef<HTMLDivElement>(null);
 
@@ -54,33 +52,38 @@ function MarketOverview() {
     const controller = new AbortController();
     setStatus("loading");
 
-    fetchBestInvestments(
-      {
-        leagues: requestLeagueIds,
-        categories: applied.categories,
-        pairCurrencies: applied.pairCurrencies,
-        currentDayOfLeague: applied.currentDayOfLeague,
-        daysBack: applied.daysBack,
-        daysForward: applied.daysForward,
-        count: applied.investmentCount,
-        minVolume: applied.minVolume,
-      },
-      controller.signal,
-    )
-      .then((response) => {
-        setInvestments(response.investments);
-        setPoeNinjaStatus(response.poeNinjaStatus);
-        setStatus("success");
-        setErrorMessage(null);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setStatus("error");
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load");
-      });
+    const timeoutId = window.setTimeout(() => {
+      fetchBestInvestments(
+        {
+          leagues: requestLeagueIds,
+          categories: filters.categories,
+          pairCurrencies: filters.pairCurrencies,
+          currentDayOfLeague: filters.currentDayOfLeague,
+          daysBack: filters.daysBack,
+          daysForward: filters.daysForward,
+          count: filters.investmentCount,
+          minVolume: filters.minVolume,
+        },
+        controller.signal,
+      )
+        .then((response) => {
+          setInvestments(response.investments);
+          setPoeNinjaStatus(response.poeNinjaStatus);
+          setStatus("success");
+          setErrorMessage(null);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setStatus("error");
+          setErrorMessage(error instanceof Error ? error.message : "Failed to load");
+        });
+    }, FETCH_DEBOUNCE_MS);
 
-    return () => controller.abort();
-  }, [applied, selectedLeagueIds, liveLeague]);
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [filters, selectedLeagueIds, liveLeague]);
 
   useEffect(() => {
     if (favorites.length === 0) {
@@ -92,37 +95,42 @@ function MarketOverview() {
     const controller = new AbortController();
     setFavoritesStatus("loading");
 
-    fetchFavorites(
-      {
-        favorites,
-        leagues: requestLeagueIds,
-        currentDayOfLeague: applied.currentDayOfLeague,
-        daysBack: applied.daysBack,
-        daysForward: applied.daysForward,
-      },
-      controller.signal,
-    )
-      .then((response) => {
-        setFavoriteInvestments(response.investments);
-        setFavoritesStatus("success");
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setFavoritesStatus("error");
-      });
+    const timeoutId = window.setTimeout(() => {
+      fetchFavorites(
+        {
+          favorites,
+          leagues: requestLeagueIds,
+          currentDayOfLeague: filters.currentDayOfLeague,
+          daysBack: filters.daysBack,
+          daysForward: filters.daysForward,
+        },
+        controller.signal,
+      )
+        .then((response) => {
+          setFavoriteInvestments(response.investments);
+          setFavoritesStatus("success");
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setFavoritesStatus("error");
+        });
+    }, FETCH_DEBOUNCE_MS);
 
-    return () => controller.abort();
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
     // Deliberately keyed on just the day-window fields (not the whole
-    // `applied` object) — favorites ignore Categories/pair-currency/count/
+    // `filters` object) — favorites ignore Categories/pair-currency/count/
     // minVolume entirely, so a change to those shouldn't refetch this list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     favorites,
     selectedLeagueIds,
     liveLeague,
-    applied.currentDayOfLeague,
-    applied.daysBack,
-    applied.daysForward,
+    filters.currentDayOfLeague,
+    filters.daysBack,
+    filters.daysForward,
   ]);
 
   useEffect(() => {
@@ -143,16 +151,23 @@ function MarketOverview() {
     <main className="market-overview">
       <header className="league-banner">
         <div className="league-banner-top-row">
-          <h1 className="league-banner-name">
-            {currentLeague.name} league{" "}
-            <span className="league-banner-version">{currentLeague.version}</span>
-          </h1>
+          <h1 className="league-banner-name">{currentLeague.name} league</h1>
           <InfoIcon visitorCount={visitorCount} poeNinjaStatus={poeNinjaStatus} />
         </div>
-        <p className="league-banner-started">
+        <p
+          className="league-banner-started"
+          title={leagueHasStarted ? "Live" : "Upcoming"}
+        >
+          <span
+            className={
+              leagueHasStarted
+                ? "league-banner-started-dot league-banner-started-dot-live"
+                : "league-banner-started-dot"
+            }
+          />
           {leagueHasStarted
-            ? `Started ${formatIsoDate(currentLeague.startDate)}`
-            : `Starts ${formatIsoDate(currentLeague.startDate)} (in ${formatTimeUntil(currentLeague.startDate)})`}
+            ? `Started ${formatDate(currentLeague.startDate)}`
+            : `Starts ${formatDate(currentLeague.startDate)} (in ${formatTimeUntil(currentLeague.startDate)})`}
         </p>
       </header>
       <LeagueFilter>
@@ -164,38 +179,38 @@ function MarketOverview() {
             onClick={() => setIsFiltersOpen((open) => !open)}
           >
             Filters
-            {isDirty && (
-              <span className="filters-dirty-dot" aria-label="Unapplied filter changes" />
-            )}
             <ChevronIcon open={isFiltersOpen} />
           </button>
           {isFiltersOpen && (
             <div className="filters-dropdown">
+              <div className="dropdown-header">
+                <span className="dropdown-panel-label">Filters</span>
+                <button
+                  type="button"
+                  className="dropdown-close-button"
+                  aria-label="Close"
+                  onClick={() => setIsFiltersOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
               <CategoryFilter />
               <PairCurrencyFilter />
               <DayOfLeagueSlider />
               <DaySpanSlider />
               <InvestmentCountSlider
-                count={draft.investmentCount}
-                setCount={setDraftInvestmentCount}
+                count={filters.investmentCount}
+                setCount={setInvestmentCount}
                 minCount={bounds.minBestInvestmentCount}
                 maxCount={bounds.maxBestInvestmentCount}
               />
               <MinVolumeSlider
-                minVolume={draft.minVolume}
-                setMinVolume={setDraftMinVolume}
+                minVolume={filters.minVolume}
+                setMinVolume={setMinVolume}
                 minVolumeBound={bounds.minVolumeFilter}
                 maxVolumeBound={bounds.maxVolumeFilter}
               />
               <div className="filters-actions">
-                <button
-                  type="button"
-                  className="filters-apply-button"
-                  disabled={!isDirty}
-                  onClick={applyFilters}
-                >
-                  Apply filters
-                </button>
                 <button
                   type="button"
                   className="filters-reset-button"
@@ -211,16 +226,15 @@ function MarketOverview() {
       {favoritesStatus !== "error" && (
         <BestInvestment
           title="Favorites"
-          caption={`Rate change from day ${applied.currentDayOfLeague - applied.daysBack} to day ${applied.currentDayOfLeague + applied.daysForward}.`}
+          caption={`Rate change from day ${filters.currentDayOfLeague - filters.daysBack} to day ${filters.currentDayOfLeague + filters.daysForward}.`}
           emptyMessage=""
           investments={favoriteInvestments}
           isLoading={favoritesStatus === "loading"}
           skeletonCount={favorites.length}
-          currentDayOfLeague={applied.currentDayOfLeague}
-          daysBack={applied.daysBack}
-          daysForward={applied.daysForward}
-          isFavorite={isFavorite}
-          onToggleFavorite={toggleFavorite}
+          currentDayOfLeague={filters.currentDayOfLeague}
+          daysBack={filters.daysBack}
+          daysForward={filters.daysForward}
+          onRemoveFavorite={toggleFavorite}
           extraContent={<FavoritesSearch />}
         />
       )}
@@ -237,21 +251,19 @@ function MarketOverview() {
             <>
               Best investments —{" "}
               <span className="best-investment-title-day">
-                Day {applied.currentDayOfLeague}
+                Day {filters.currentDayOfLeague}
               </span>{" "}
               of the league
             </>
           }
-          caption={`Based on the rate change from day ${applied.currentDayOfLeague - applied.daysBack} to day ${applied.currentDayOfLeague + applied.daysForward}.`}
+          caption={`Based on the rate change from day ${filters.currentDayOfLeague - filters.daysBack} to day ${filters.currentDayOfLeague + filters.daysForward}.`}
           emptyMessage="No investment is good right now."
           investments={investments}
           isLoading={status === "loading"}
-          skeletonCount={applied.investmentCount}
-          currentDayOfLeague={applied.currentDayOfLeague}
-          daysBack={applied.daysBack}
-          daysForward={applied.daysForward}
-          isFavorite={isFavorite}
-          onToggleFavorite={toggleFavorite}
+          skeletonCount={filters.investmentCount}
+          currentDayOfLeague={filters.currentDayOfLeague}
+          daysBack={filters.daysBack}
+          daysForward={filters.daysForward}
         />
       )}
     </main>

@@ -3,10 +3,10 @@ import { useMeta } from "../context/MetaContext";
 import { DEFAULT_CURRENT_DATE, getDayOfLeagueForDate } from "../lib/marketData";
 
 function DayOfLeagueSlider() {
-  const { draft, setDraftCurrentDayOfLeague } = useFilters();
+  const { filters, setCurrentDayOfLeague } = useFilters();
   const { bounds, currentLeague } = useMeta();
   const { minDayOfLeague, maxDayOfLeague } = bounds;
-  const currentDayOfLeague = draft.currentDayOfLeague;
+  const currentDayOfLeague = filters.currentDayOfLeague;
 
   const range = maxDayOfLeague - minDayOfLeague || 1;
   const percent = ((currentDayOfLeague - minDayOfLeague) / range) * 100;
@@ -35,7 +35,7 @@ function DayOfLeagueSlider() {
           type="button"
           className="day-of-league-jump-today-button"
           disabled={currentDayOfLeague === todayDayOfLeague}
-          onClick={() => setDraftCurrentDayOfLeague(todayDayOfLeague)}
+          onClick={() => setCurrentDayOfLeague(todayDayOfLeague)}
         >
           Jump to today
         </button>
@@ -49,7 +49,7 @@ function DayOfLeagueSlider() {
         step={1}
         value={currentDayOfLeague}
         onChange={(event) =>
-          setDraftCurrentDayOfLeague(Number(event.target.value))
+          setCurrentDayOfLeague(Number(event.target.value))
         }
         style={{
           background: `linear-gradient(to right, color-mix(in srgb, var(--select) 40%, var(--border)) ${percent}%, var(--border) ${percent}%)`,

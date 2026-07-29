@@ -1,3 +1,23 @@
+/* Display face used for the page heading and each item card's name —
+   everywhere else keeps --sans. Both weights are real files (not a
+   synthesized bold), so font-weight: 600 picks the SemiBold face rather
+   than a faux-bolded Regular one. */
+@font-face {
+  font-family: "Optimus Princeps";
+  src: url("./assets/fonts/OptimusPrinceps.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Optimus Princeps";
+  src: url("./assets/fonts/OptimusPrincepsSemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Design tokens. Always dark — this app doesn't have a light mode,
    regardless of the OS/browser color-scheme preference.
 
@@ -24,8 +44,8 @@
 
   --accent: #c9a227;
   --accent-bg: rgba(201, 162, 39, 0.14);
-  --select: #4a90d9;
-  --select-bg: rgba(74, 144, 217, 0.14);
+  --select: #3c73af;
+  --select-bg: rgba(60, 115, 175, 0.14);
   --gain: #5fae4d;
   --loss: #c0392b;
 
@@ -71,7 +91,15 @@ h3 {
 }
 
 h1 {
+  font-family: "Optimus Princeps", var(--sans);
   font-size: 32px;
+  /* Without this, h1 inherits line-height as a frozen 23.2px (145% of the
+     root's 16px font-size — CSS percentage line-heights compute once at
+     the declaring element and inherit as that fixed length, not as a
+     live ratio), which is shorter than the 32px glyphs it needs to hold,
+     so a wrapped two-line heading (e.g. on narrow screens) reads as
+     cramped/overlapping. */
+  line-height: 1.25;
   margin: 32px 0 24px;
 }
 
@@ -83,4 +111,14 @@ h2 {
 h3 {
   font-size: 16px;
   margin: 0 0 8px;
+}
+
+@media (max-width: 600px) {
+  #root {
+    padding: 0 12px 32px;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
 }

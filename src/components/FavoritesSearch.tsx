@@ -78,6 +78,16 @@ function FavoritesSearch() {
           setIsOpen(true);
           setHighlightedIndex(0);
         }}
+        onBlur={() => {
+          // Deferred a tick — blur fires before a click on a result row/star
+          // finishes registering (mousedown moves focus off the input
+          // first), so clearing synchronously here would wipe the results
+          // out from under that click before its own handler ran.
+          window.setTimeout(() => {
+            setQuery("");
+            setIsOpen(false);
+          }, 0);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setQuery("");

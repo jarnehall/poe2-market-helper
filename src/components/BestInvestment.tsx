@@ -3,8 +3,8 @@ import { useMeta } from "../context/MetaContext";
 import { changeClass, formatPercentChange } from "../lib/format";
 import { getImageUrl, getPoeNinjaUrl } from "../lib/marketData";
 import type { BestInvestment as BestInvestmentEntry, FavoriteItem } from "../types";
-import FavoriteStar from "./FavoriteStar";
 import InvestmentTrend from "./InvestmentTrend";
+import RemoveFavoriteButton from "./RemoveFavoriteButton";
 
 function BestInvestment({
   title,
@@ -16,8 +16,7 @@ function BestInvestment({
   currentDayOfLeague,
   daysBack,
   daysForward,
-  isFavorite,
-  onToggleFavorite,
+  onRemoveFavorite,
   extraContent,
 }: {
   title: ReactNode;
@@ -29,8 +28,10 @@ function BestInvestment({
   currentDayOfLeague: number;
   daysBack: number;
   daysForward: number;
-  isFavorite: (itemId: string, pairId: string) => boolean;
-  onToggleFavorite: (favorite: FavoriteItem) => void;
+  // Only passed for the Favorites section — when present, every card gets a
+  // top-right × to unfavorite it directly, instead of only being able to
+  // pin/unpin via the search bar.
+  onRemoveFavorite?: (favorite: FavoriteItem) => void;
   // Rendered right under the title in every state (loading/empty/loaded) —
   // currently just the favorites search box, so it's always reachable even
   // before anything's been pinned yet.
@@ -96,17 +97,18 @@ function BestInvestment({
             key={`${investment.item.id}-${investment.pairId}`}
             className="best-investment-card"
           >
-            <FavoriteStar
-              isFavorite={isFavorite(investment.item.id, investment.pairId)}
-              onToggle={() =>
-                onToggleFavorite({
-                  category: investment.item.category,
-                  itemId: investment.item.id,
-                  pairId: investment.pairId,
-                })
-              }
-              itemName={investment.item.name}
-            />
+            {onRemoveFavorite && (
+              <RemoveFavoriteButton
+                onRemove={() =>
+                  onRemoveFavorite({
+                    category: investment.item.category,
+                    itemId: investment.item.id,
+                    pairId: investment.pairId,
+                  })
+                }
+                itemName={investment.item.name}
+              />
+            )}
             <div className="best-investment-card-header">
               <img
                 className="best-investment-image"

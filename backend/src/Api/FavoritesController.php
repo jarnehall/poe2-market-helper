@@ -51,12 +51,18 @@ final class FavoritesController
         $daysBack = QueryParams::clampInt(
             $query['daysBack'] ?? null,
             $this->bounds['minWindowDays'],
-            max($this->bounds['minWindowDays'], $currentDayOfLeague - $this->bounds['minDayOfLeague']),
+            min(
+                $this->bounds['maxWindowDays'],
+                max($this->bounds['minWindowDays'], $currentDayOfLeague - $this->bounds['minDayOfLeague']),
+            ),
         );
         $daysForward = QueryParams::clampInt(
             $query['daysForward'] ?? null,
             $this->bounds['minWindowDays'],
-            max($this->bounds['minWindowDays'], $this->bounds['maxDayOfLeague'] - $currentDayOfLeague),
+            min(
+                $this->bounds['maxWindowDays'],
+                max($this->bounds['minWindowDays'], $this->bounds['maxDayOfLeague'] - $currentDayOfLeague),
+            ),
         );
 
         $pins = $this->parsePins($query['pins'] ?? '');

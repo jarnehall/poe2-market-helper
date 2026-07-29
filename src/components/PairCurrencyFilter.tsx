@@ -3,7 +3,7 @@ import { useMeta } from '../context/MetaContext'
 
 function PairCurrencyFilter() {
   const { pairCurrencies } = useMeta()
-  const { draft, toggleDraftPairCurrency } = useFilters()
+  const { filters, togglePairCurrency } = useFilters()
 
   return (
     <div className="pair-currency-filter">
@@ -14,7 +14,7 @@ function PairCurrencyFilter() {
         aria-label="Traded against"
       >
         {pairCurrencies.map((pairCurrency) => {
-          const isSelected = draft.pairCurrencies.includes(pairCurrency.id)
+          const isSelected = filters.pairCurrencies.includes(pairCurrency.id)
           return (
             <button
               key={pairCurrency.id}
@@ -25,7 +25,7 @@ function PairCurrencyFilter() {
                   ? 'pair-currency-filter-button pair-currency-filter-button-active'
                   : 'pair-currency-filter-button'
               }
-              onClick={() => toggleDraftPairCurrency(pairCurrency.id)}
+              onClick={() => togglePairCurrency(pairCurrency.id)}
             >
               {pairCurrency.name}
             </button>

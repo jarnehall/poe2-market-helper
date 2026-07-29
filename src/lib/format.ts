@@ -6,11 +6,6 @@ export function formatDate(timestamp: string): string {
   })
 }
 
-// Plain yyyy-mm-dd, e.g. for "Started 2026-07-24" — no locale formatting.
-export function formatIsoDate(timestamp: string): string {
-  return timestamp.slice(0, 10)
-}
-
 // "2 days and 4 hours", "1 hour", "less than a minute" — for a countdown to
 // a future timestamp. Assumes targetTimestamp is in the future; days/hours
 // are floored (a "day" only counts once it's fully elapsed).

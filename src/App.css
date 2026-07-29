@@ -42,41 +42,62 @@
   color: var(--text-h);
 }
 
-.league-banner-version {
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--select);
-  background: var(--select-bg);
-}
-
+/* A small status pill instead of plain text — the dot's color doubles as an
+   at-a-glance "is it running yet" signal (gain-green once started, the same
+   blue used for other "upcoming/selected" states before that). */
 .league-banner-started {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  font-size: 14px;
-  color: var(--text);
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
 }
 
+.league-banner-started-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--select);
+  flex-shrink: 0;
+}
+
+.league-banner-started-dot-live {
+  background: var(--gain);
+}
+
+/* A grid (not flex) specifically so the Leagues toggle, the badge list, and
+   the Filters toggle (passed in as `children`, from a completely different
+   part of the component tree) can be freely rearranged per breakpoint via
+   named grid areas, without needing three genuine sibling elements —
+   .league-filter-left below is unwrapped via display: contents so its two
+   children (leagues toggle + badges) act as direct grid items here. */
 .league-filter {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  grid-template-areas: "leagues badges . filters";
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
 }
 
 .league-filter-left {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
+  display: contents;
 }
 
 .league-filter-menu {
+  grid-area: leagues;
   position: relative;
   flex-shrink: 0;
 }
 
 .league-filter-badges {
+  grid-area: badges;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -151,19 +172,38 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-sizing: border-box;
   width: max-content;
   max-width: min(360px, calc(100vw - 32px));
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface-2);
+  /* --bg (the page's own background), not --surface-2 like other floating
+     panels (popovers, tooltips) — this one reads better matching the app
+     itself rather than standing out as a lighter, separate layer. */
+  background: var(--bg);
   box-shadow: var(--shadow-float);
 }
 
-.league-filter-dropdown-label {
+/* Shared by every dropdown panel's own top row (Leagues, Filters): a title
+   plus a close button that's only ever shown on narrow screens, where the
+   panel becomes a fullscreen overlay with no "click outside" area left to
+   dismiss it with (see the max-width: 600px block at the end of this file). */
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dropdown-panel-label {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-h);
+}
+
+.dropdown-close-button {
+  display: none;
 }
 
 .league-filter-dropdown-buttons {
@@ -185,7 +225,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
@@ -274,6 +314,7 @@
 }
 
 .filters-menu {
+  grid-area: filters;
   position: relative;
   flex-shrink: 0;
 }
@@ -296,14 +337,6 @@
   transition: transform 0.15s ease;
 }
 
-.filters-dirty-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--select);
-  flex-shrink: 0;
-}
-
 .filters-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -312,12 +345,16 @@
   display: flex;
   flex-direction: column;
   gap: 22px;
+  box-sizing: border-box;
   width: clamp(260px, 32vw, 420px);
   max-width: calc(100vw - 32px);
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface-2);
+  /* --bg (the page's own background), not --surface-2 like other floating
+     panels (popovers, tooltips) — this one reads better matching the app
+     itself rather than standing out as a lighter, separate layer. */
+  background: var(--bg);
   box-shadow: var(--shadow-float);
 }
 
@@ -325,31 +362,6 @@
   display: flex;
   gap: 10px;
   margin-top: 4px;
-}
-
-.filters-apply-button {
-  flex: 1;
-  padding: 8px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--select);
-  background: var(--select);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    filter 0.15s ease,
-    opacity 0.15s ease;
-}
-
-.filters-apply-button:hover:not(:disabled) {
-  filter: brightness(1.15);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-}
-
-.filters-apply-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .filters-reset-button {
@@ -478,15 +490,20 @@
   pointer-events: none;
 }
 
+/* Same solid, select-filled circular handle with a dark ring as the native
+   range-input thumbs below (day-of-league/investment-count/min-volume) —
+   this one's just custom-built (two independent handles, not a single
+   native <input type="range">), so it needs its own copy of the styling
+   rather than sharing their selector. */
 .day-span-slider-thumb {
   position: absolute;
   top: 50%;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 2px solid var(--select);
-  background: var(--ink);
+  border: 2px solid var(--ink);
+  background: var(--select);
   cursor: grab;
   touch-action: none;
 }
@@ -499,13 +516,6 @@
 
 .day-span-slider-thumb:active {
   cursor: grabbing;
-}
-
-.day-span-slider-bounds {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text);
 }
 
 .day-of-league-slider-today {
@@ -621,6 +631,40 @@
     box-shadow 0.15s ease;
 }
 
+/* Hover-revealed, same as the old favorite star — and deliberately free to
+   overlap the category badge underneath it (no reserved padding) rather
+   than shifting the card's layout just for this. */
+.remove-favorite-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.best-investment-card:hover .remove-favorite-button {
+  opacity: 1;
+}
+
+.remove-favorite-button:hover {
+  color: var(--loss);
+  background: var(--surface);
+}
+
 .favorite-star {
   position: absolute;
   top: 10px;
@@ -640,7 +684,6 @@
     transform 0.15s ease;
 }
 
-.best-investment-card:hover .favorite-star,
 .favorite-star-active {
   opacity: 1;
 }
@@ -661,6 +704,7 @@
 }
 
 .favorites-search-input {
+  box-sizing: border-box;
   width: 100%;
   padding: 8px 14px;
   border-radius: var(--radius-md);
@@ -686,6 +730,7 @@
   left: 0;
   right: 0;
   z-index: 30;
+  box-sizing: border-box;
   list-style: none;
   margin: 0;
   padding: 8px;
@@ -853,13 +898,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  /* Reserves room for .favorite-star, which sits absolutely positioned in
-     the card's top-right corner (see there) — without this, the category
-     badge (the rightmost thing in this row) sits directly underneath it. */
-  padding-right: 28px;
 }
 
 .best-investment-name {
+  font-family: "Optimus Princeps", var(--sans);
   font-size: 15px;
   font-weight: 600;
   color: var(--text-h);
@@ -1200,5 +1242,62 @@
 @media (max-width: 600px) {
   .best-investment-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* The h1 wraps to two lines at this width — center-aligning the info
+     icon against the whole (now taller) heading leaves it floating between
+     the two lines instead of next to the first one, so this switches to
+     top-alignment instead, which reads correctly whether the heading wraps
+     or not. */
+  .league-banner-top-row {
+    align-items: flex-start;
+  }
+
+  /* Selected leagues get their own full-width row up top; the two dropdown
+     toggles (Leagues, Filters) move to a row of their own underneath,
+     side by side — same grid items as the wide layout above, just
+     rearranged into 2 rows instead of squeezed into 1. */
+  .league-filter {
+    grid-template-columns: auto auto;
+    grid-template-areas:
+      "badges badges"
+      "leagues filters";
+    justify-content: start;
+  }
+
+  /* The floating panels are too cramped to use comfortably at this width —
+     full-screen is both easier to scroll and easier to hit targets in. */
+  .filters-dropdown,
+  .league-filter-dropdown {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    overflow-y: auto;
+  }
+
+  /* A full-screen panel has no visible "outside" left to tap for the
+     existing click-outside-to-close behavior, so this is the only way to
+     dismiss it without applying/resetting — hidden otherwise (see
+     .dropdown-close-button's base rule) since the floating panels on wider
+     screens still close that way just fine. */
+  .dropdown-close-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: none;
+    background: var(--surface);
+    color: var(--text-h);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
   }
 }

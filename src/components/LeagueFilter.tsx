@@ -39,7 +39,17 @@ function LeagueFilter({ children }: { children?: ReactNode }) {
           </button>
           {isOpen && (
             <div className="league-filter-dropdown">
-              <span className="league-filter-dropdown-label">Leagues</span>
+              <div className="dropdown-header">
+                <span className="dropdown-panel-label">Leagues</span>
+                <button
+                  type="button"
+                  className="dropdown-close-button"
+                  aria-label="Close"
+                  onClick={() => setIsOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
               <div
                 className="league-filter-dropdown-buttons"
                 role="group"

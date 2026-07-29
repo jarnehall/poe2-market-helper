@@ -10,14 +10,8 @@ type Handle = "before" | "after";
 // always >= 0), there's no overlapping-thumb ambiguity to resolve, unlike
 // the old single three-handle slider this replaced.
 function DaySpanSlider() {
-  const {
-    draft,
-    setDraftDaysBack: setDaysBack,
-    setDraftDaysForward: setDaysForward,
-    maxDraftDaysBack: maxDaysBack,
-    maxDraftDaysForward: maxDaysForward,
-  } = useFilters();
-  const { daysBack, daysForward } = draft;
+  const { filters, setDaysBack, setDaysForward, maxDaysBack, maxDaysForward } = useFilters();
+  const { daysBack, daysForward } = filters;
   const trackRef = useRef<HTMLDivElement>(null);
   const [draggingHandle, setDraggingHandle] = useState<Handle | null>(null);
 
@@ -134,10 +128,6 @@ function DaySpanSlider() {
           aria-valuenow={daysForward}
           onKeyDown={handleKeyDown("after", daysForward)}
         />
-      </div>
-      <div className="day-span-slider-bounds">
-        <span>−{maxDaysBack}</span>
-        <span>+{maxDaysForward}</span>
       </div>
     </div>
   );

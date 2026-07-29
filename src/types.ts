@@ -35,6 +35,7 @@ export interface FilterBounds {
   minDayOfLeague: number
   maxDayOfLeague: number
   minWindowDays: number
+  maxWindowDays: number
   defaultDaysBack: number
   defaultDaysForward: number
   minBestInvestmentCount: number
