@@ -35,7 +35,11 @@ final class InvestmentPayloadBuilder
      * since it has no static data/ folder (see LeagueRepository). Instead,
      * for whichever items were already resolved, this fetches (or reads from
      * cache) that same item+pair's live data from poe.ninja and appends it as
-     * an extra leagueHistories/leagueChanges entry, purely for display.
+     * an extra leagueHistories entry, purely for display as an overlay line
+     * on the chart. Deliberately NOT added to leagueChanges (the per-league
+     * percent-change breakdown shown next to the card's main number) — the
+     * live league was never actually selected, so its own "growth" isn't a
+     * meaningful data point there, only the leagues the user picked are.
      */
     public function augmentWithLiveLeague(
         array $investments,
@@ -82,17 +86,6 @@ final class InvestmentPayloadBuilder
 
             $liveLeagueStub = ['id' => $liveLeagueId, 'startDate' => $this->currentLeagueInfo['startDate']];
             $investment['leagueHistories'][] = ['league' => $liveLeagueStub, 'history' => $livePair['history']];
-
-            $change = MarketData::getWindowPercentChange(
-                $livePair['history'],
-                $this->currentLeagueInfo['startDate'],
-                $currentDayOfLeague,
-                $daysBack,
-                $daysForward,
-            );
-            if ($change !== null) {
-                $investment['leagueChanges'][] = ['league' => $liveLeagueStub, 'percentChange' => $change];
-            }
         }
         unset($investment);
 

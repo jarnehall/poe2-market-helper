@@ -34,7 +34,6 @@ interface FiltersContextValue {
   setDaysForward: (days: number) => void
   setInvestmentCount: (count: number) => void
   setMinVolume: (volume: number) => void
-  resetFilters: () => void
 }
 
 const FiltersContext = createContext<FiltersContextValue | null>(null)
@@ -66,11 +65,9 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
     return {
       categories: getStoredStringArray('selectedCategories', defaults.categories),
       pairCurrencies: getStoredStringArray('selectedPairCurrencies', defaults.pairCurrencies),
-      currentDayOfLeague: clamp(
-        getStoredNumber('currentDayOfLeague', defaults.currentDayOfLeague),
-        bounds.minDayOfLeague,
-        bounds.maxDayOfLeague,
-      ),
+      // Deliberately not read from localStorage — the day slider should
+      // always default to today's date, not the last day the user viewed.
+      currentDayOfLeague: defaults.currentDayOfLeague,
       daysBack: getStoredNumber('daysBack', defaults.daysBack),
       daysForward: getStoredNumber('daysForward', defaults.daysForward),
       investmentCount: getStoredNumber('investmentCount', defaults.investmentCount),
@@ -87,7 +84,6 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setStoredStringArray('selectedCategories', filtersRaw.categories)
     setStoredStringArray('selectedPairCurrencies', filtersRaw.pairCurrencies)
-    setStoredNumber('currentDayOfLeague', filtersRaw.currentDayOfLeague)
     setStoredNumber('daysBack', filtersRaw.daysBack)
     setStoredNumber('daysForward', filtersRaw.daysForward)
     setStoredNumber('investmentCount', filtersRaw.investmentCount)
@@ -120,8 +116,6 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
     }),
     [filtersRaw, maxDaysBack, maxDaysForward],
   )
-
-  const resetFilters = () => setFiltersRaw(defaultFilters())
 
   const value = useMemo<FiltersContextValue>(
     () => ({
@@ -161,7 +155,6 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
           ...current,
           minVolume: clamp(volume, bounds.minVolumeFilter, bounds.maxVolumeFilter),
         })),
-      resetFilters,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filters, maxDaysBack, maxDaysForward, bounds],

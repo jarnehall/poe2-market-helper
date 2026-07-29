@@ -19,6 +19,6 @@ return [
     'maxBestInvestmentCount' => 18,
     'defaultBestInvestmentCount' => 9,
     'minVolumeFilter' => 0,
-    'maxVolumeFilter' => 5000,
+    'maxVolumeFilter' => 1000,
     'defaultMinVolume' => 100,
 ];

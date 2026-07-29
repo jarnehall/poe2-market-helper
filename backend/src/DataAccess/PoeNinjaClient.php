@@ -7,8 +7,17 @@ namespace App\DataAccess;
 /**
  * Fetches per-item detail entries for the current, still-running league
  * directly from poe.ninja, caching them to a single on-disk JSON file so
- * the same item is only re-fetched once per UTC calendar day (poe.ninja's
- * own data only updates that often).
+ * the same item is only re-fetched once every CACHE_TTL_SECONDS.
+ *
+ * Not calendar-day-based on purpose: poe.ninja publishes each day's new
+ * snapshot at some point *during* that UTC day, not exactly at midnight, so
+ * a "once per UTC calendar day" cache can get unlucky — whichever request
+ * happens to be the day's first for an item is a gamble, and if it lands
+ * even a minute before poe.ninja publishes, that item is stuck with
+ * yesterday's data for a full 24 hours rather than just until poe.ninja
+ * catches up. A rolling TTL instead just means an unlucky early fetch tries
+ * again a couple of hours later — self-correcting within the same day —
+ * while still only firing a handful of requests per item per day.
  *
  * Only ever fetches specific (item id, category) pairs the caller already
  * knows it needs (e.g. whatever the static-league ranking already picked)
@@ -20,6 +29,7 @@ final class PoeNinjaClient
     private const DETAILS_URL = 'https://poe.ninja/poe2/api/economy/exchange/current/details';
     private const USER_AGENT = 'poe2-market-guide/1.0 (personal project; +https://poe2.jarnehall.se/)';
     private const TIMEOUT_SECONDS = 10;
+    private const CACHE_TTL_SECONDS = 2 * 60 * 60;
 
     // poe.ninja's `type` query param isn't always just the category name —
     // this mirrors the (separately-maintained) POE_NINJA_CATEGORY_SLUGS
@@ -51,7 +61,7 @@ final class PoeNinjaClient
         return $this->lastFailedItemIds;
     }
 
-    /** How many items actually required a fresh network fetch (not served from same-day cache) on the last getEntries() call. */
+    /** How many items actually required a fresh network fetch (not served from a still-fresh cache entry) on the last getEntries() call. */
     public function getLastAttemptedCount(): int
     {
         return $this->lastAttemptedCount;
@@ -68,7 +78,7 @@ final class PoeNinjaClient
         $this->lastAttemptedCount = 0;
 
         $cache = $this->readCache();
-        $today = gmdate('Y-m-d');
+        $now = time();
 
         $result = [];
         $toFetch = [];
@@ -76,7 +86,11 @@ final class PoeNinjaClient
         foreach ($items as $item) {
             $itemId = $item['itemId'];
             $cached = $cache[$itemId] ?? null;
-            if ($cached !== null && ($cached['fetchedDate'] ?? null) === $today) {
+            // A cache entry from before this TTL-based scheme (still keyed
+            // by 'fetchedDate') has no 'fetchedAt' at all — ?? 0 makes that
+            // look infinitely stale, so it's simply refetched and upgraded
+            // to the new format on write, no explicit migration needed.
+            if ($cached !== null && $now - ($cached['fetchedAt'] ?? 0) < self::CACHE_TTL_SECONDS) {
                 $result[$itemId] = $cached['entry'];
             } else {
                 $toFetch[$itemId] = $item['category'];
@@ -94,7 +108,8 @@ final class PoeNinjaClient
         foreach ($toFetch as $itemId => $category) {
             if (!array_key_exists($itemId, $fetched)) {
                 // A network/HTTP-level failure — don't cache it, so the next
-                // request tries again instead of being stuck null all day.
+                // request tries again instead of being stuck null for the
+                // rest of the TTL window.
                 $result[$itemId] = null;
                 $this->lastFailedItemIds[] = $itemId;
                 continue;
@@ -102,7 +117,7 @@ final class PoeNinjaClient
 
             $entry = $fetched[$itemId];
             $result[$itemId] = $entry;
-            $cache[$itemId] = ['fetchedDate' => $today, 'entry' => $entry];
+            $cache[$itemId] = ['fetchedAt' => $now, 'entry' => $entry];
             $cacheChanged = true;
         }
 

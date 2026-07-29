@@ -1,3 +1,101 @@
+/* Cancels #root's own horizontal padding so the translucent bar spans the
+   full 1200px content column edge-to-edge (like a real nav bar), while
+   .app-header-inner re-applies that same padding so the title/dropdowns
+   still line up with the rest of the page's content. The blur/tint lives on
+   ::before rather than directly on .app-header itself: filter/backdrop-filter
+   on an element establishes a new containing block for its *own*
+   fixed/absolutely-positioned descendants, which would otherwise size the
+   mobile full-screen Filters/Leagues dropdowns (position: fixed; inset: 0)
+   against this slim bar instead of the actual viewport — a pseudo-element
+   has no descendants, so isolating the filter there sidesteps that
+   entirely. */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  margin: 0 -24px;
+}
+
+.app-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(11, 13, 17, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.app-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-family: "Optimus Princeps", var(--sans);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.app-header-title-icon {
+  height: 32px;
+  width: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.app-header-title-short {
+  display: none;
+}
+
+/* Below this, "Jarnehall's Market Helper" alongside the icon and the
+   Leagues/Filters/Settings toggles no longer fits on one row (measured:
+   wraps starting at 665px — re-measure again if more header content gets
+   added) — swapping to the initialism a bit before that point avoids the
+   header ever actually wrapping to a second line. */
+@media (max-width: 690px) {
+  .app-header-title-full {
+    display: none;
+  }
+
+  .app-header-title-short {
+    display: inline;
+  }
+}
+
+/* Even "JMH" next to the icon stops fitting alongside the three toggles
+   below this (measured: wraps starting at 420px, only just still fits at
+   430px) — past that point only the icon remains, dropping the text
+   entirely instead of wrapping to a second line. */
+@media (max-width: 440px) {
+  .app-header-title-short {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-header {
+    margin: 0 -12px;
+  }
+
+  .app-header-inner {
+    padding: 12px;
+  }
+}
+
 .market-overview {
   display: flex;
   flex-direction: column;
@@ -19,18 +117,6 @@
   flex-direction: column;
   gap: 6px;
   margin-top: 2em;
-}
-
-/* Puts the info icon on the same row as the heading, right-aligned to the
-   same edge the card grid's rightmost column ends at (both are full-width
-   within .market-overview, so justify-content: space-between naturally
-   lines the icon's right edge up with it) and vertically centered with the
-   heading's own line, instead of hardcoding either position by hand. */
-.league-banner-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .league-banner-name {
@@ -72,32 +158,21 @@
   background: var(--gain);
 }
 
-/* A grid (not flex) specifically so the Leagues toggle, the badge list, and
-   the Filters toggle (passed in as `children`, from a completely different
-   part of the component tree) can be freely rearranged per breakpoint via
-   named grid areas, without needing three genuine sibling elements —
-   .league-filter-left below is unwrapped via display: contents so its two
-   children (leagues toggle + badges) act as direct grid items here. */
+/* Just the Leagues toggle next to the Filters toggle (passed in as
+   `children`) — the selected-league badges used to live in here too (see
+   LeagueBadges, rendered separately below the league banner instead). */
 .league-filter {
-  display: grid;
-  grid-template-columns: auto auto 1fr auto;
-  grid-template-areas: "leagues badges . filters";
+  display: flex;
   align-items: center;
-  gap: 12px;
-}
-
-.league-filter-left {
-  display: contents;
+  gap: 6px;
 }
 
 .league-filter-menu {
-  grid-area: leagues;
   position: relative;
   flex-shrink: 0;
 }
 
 .league-filter-badges {
-  grid-area: badges;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -110,6 +185,7 @@
 .league-filter-toggle-button,
 .league-filter-button,
 .filters-toggle-button,
+.settings-toggle-button,
 .category-filter-button,
 .pair-currency-filter-button {
   padding: 6px 14px;
@@ -148,6 +224,7 @@
 .league-filter-toggle-button:hover,
 .league-filter-button:hover,
 .filters-toggle-button:hover,
+.settings-toggle-button:hover,
 .category-filter-button:hover,
 .pair-currency-filter-button:hover {
   background: var(--surface-2);
@@ -167,7 +244,7 @@
 .league-filter-dropdown {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  right: 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -192,24 +269,37 @@
 .dropdown-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
 }
 
-.dropdown-panel-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-h);
+/* .filters-dropdown/.settings-dropdown's own gap (22px, for breathing room
+   between their several distinct sections) is otherwise inherited between
+   the header and the first section too, leaving noticeably more whitespace
+   above the first control than .league-filter-dropdown has above its first
+   league button (that panel's gap is a uniform 8px throughout). Pulling the
+   header up cancels just that first gap down to the same 8px, without
+   touching the 22px between the sections after it. */
+.filters-dropdown .dropdown-header,
+.settings-dropdown .dropdown-header {
+  margin-bottom: -14px;
 }
 
 .dropdown-close-button {
   display: none;
 }
 
+/* One league per row rather than a wrapping pill grid — with only a
+   handful of leagues either reads fine, but this scales much better once
+   the list grows well past what fits in a few wrapped rows. Capped height
+   + scroll for the same reason: an unbounded list would otherwise make the
+   whole dropdown (and on mobile, the full-screen panel) grow without limit. */
 .league-filter-dropdown-buttons {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
 }
 
 .league-filter-dropdown-note {
@@ -251,75 +341,32 @@
   background: var(--select-bg);
 }
 
-/* Sits inline in .league-banner-top-row now (see App.css's comment there for
-   the alignment reasoning) — position: relative is only so the popover
-   below can anchor to this element specifically, not the page. */
-.info-icon {
-  position: relative;
-  z-index: 40;
-}
-
-.info-icon-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border: none;
-  background: none;
-  color: var(--text);
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.info-icon-button:hover,
-.info-icon-button[aria-expanded='true'] {
-  color: var(--select);
-}
-
-.info-icon-button-attention {
-  color: var(--loss);
-}
-
-.info-icon-button-attention:hover,
-.info-icon-button-attention[aria-expanded='true'] {
-  color: var(--loss);
-  filter: brightness(1.2);
-}
-
-.info-icon-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 40;
+.settings-info {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: max-content;
-  max-width: min(320px, calc(100vw - 32px));
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-2);
-  box-shadow: var(--shadow-float);
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
-.info-icon-line {
+.settings-info-line {
   margin: 0;
   font-size: 13px;
   color: var(--text);
 }
 
-.info-icon-line-warning {
+.settings-info-line-warning {
   color: var(--loss);
 }
 
 .filters-menu {
-  grid-area: filters;
   position: relative;
   flex-shrink: 0;
 }
 
-.filters-toggle-button {
+.filters-toggle-button,
+.settings-toggle-button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -327,7 +374,8 @@
   color: var(--text-h);
 }
 
-.filters-toggle-button[aria-expanded="true"] {
+.filters-toggle-button[aria-expanded="true"],
+.settings-toggle-button[aria-expanded="true"] {
   border-color: var(--select);
   color: var(--select);
 }
@@ -337,7 +385,8 @@
   transition: transform 0.15s ease;
 }
 
-.filters-dropdown {
+.filters-dropdown,
+.settings-dropdown {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
@@ -358,29 +407,9 @@
   box-shadow: var(--shadow-float);
 }
 
-.filters-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.filters-reset-button {
-  padding: 8px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--loss);
-  background: transparent;
-  color: var(--loss);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.filters-reset-button:hover {
-  background: var(--loss);
-  color: #fff;
+.settings-menu {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .category-filter,
@@ -631,40 +660,11 @@
     box-shadow 0.15s ease;
 }
 
-/* Hover-revealed, same as the old favorite star — and deliberately free to
-   overlap the category badge underneath it (no reserved padding) rather
-   than shifting the card's layout just for this. */
-.remove-favorite-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--surface-2);
-  color: var(--text);
-  cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity 0.15s ease,
-    color 0.15s ease,
-    background 0.15s ease;
-}
-
-.best-investment-card:hover .remove-favorite-button {
-  opacity: 1;
-}
-
-.remove-favorite-button:hover {
-  color: var(--loss);
-  background: var(--surface);
-}
-
+/* Hover-revealed (see .best-investment-card:hover below), even once
+   favorited — .favorite-star-active only changes its color, not its
+   opacity, so a favorited-but-unhovered card shows no star at all.
+   Deliberately free to overlap the category badge underneath it (no
+   reserved padding) rather than shifting the card's layout just for this. */
 .favorite-star {
   position: absolute;
   top: 10px;
@@ -684,7 +684,7 @@
     transform 0.15s ease;
 }
 
-.favorite-star-active {
+.best-investment-card:hover .favorite-star {
   opacity: 1;
 }
 
@@ -836,8 +836,12 @@
   height: 23px;
 }
 
+/* Matches .best-investment-name's own min-height (2 lines reserved) so the
+   skeleton card is the same height as the loaded card, whether the real
+   name that swaps in ends up wrapping to 2 lines or not. */
 .skeleton-text-name {
   width: 55%;
+  height: 46px;
 }
 
 .skeleton-text-badge {
@@ -900,10 +904,19 @@
   gap: 8px;
 }
 
+/* min-height reserves space for 2 lines (2 x the 23.2px line-height every
+   text element inherits from the root's font: 16px/145% shorthand — see
+   .skeleton-text's comment below) so a long name wrapping to a second line
+   doesn't push the image/chart/footer below it down, and short single-line
+   names stay vertically centered in that same reserved space instead of
+   sitting at its top. */
 .best-investment-name {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
   font-family: "Optimus Princeps", var(--sans);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 300;
   color: var(--text-h);
   overflow-wrap: break-word;
 }
@@ -1244,37 +1257,25 @@
     grid-template-columns: 1fr;
   }
 
-  /* The h1 wraps to two lines at this width — center-aligning the info
-     icon against the whole (now taller) heading leaves it floating between
-     the two lines instead of next to the first one, so this switches to
-     top-alignment instead, which reads correctly whether the heading wraps
-     or not. */
-  .league-banner-top-row {
-    align-items: flex-start;
-  }
-
-  /* Selected leagues get their own full-width row up top; the two dropdown
-     toggles (Leagues, Filters) move to a row of their own underneath,
-     side by side — same grid items as the wide layout above, just
-     rearranged into 2 rows instead of squeezed into 1. */
-  .league-filter {
-    grid-template-columns: auto auto;
-    grid-template-areas:
-      "badges badges"
-      "leagues filters";
-    justify-content: start;
-  }
-
   /* The floating panels are too cramped to use comfortably at this width —
-     full-screen is both easier to scroll and easier to hit targets in. */
+     full-screen is both easier to scroll and easier to hit targets in.
+     Docked below the header (via --header-height, kept in sync with the
+     header's actual rendered height by a ResizeObserver in
+     MarketOverview.tsx) rather than covering the full viewport, so the
+     header — and the toggle button used to close the panel — stays
+     visible and reachable while a panel is open. */
   .filters-dropdown,
+  .settings-dropdown,
   .league-filter-dropdown {
     position: fixed;
-    inset: 0;
-    z-index: 100;
+    top: var(--header-height, 56px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
     width: 100%;
     max-width: none;
-    height: 100%;
+    height: auto;
     max-height: none;
     border-radius: 0;
     overflow-y: auto;

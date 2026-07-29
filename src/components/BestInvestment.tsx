@@ -3,8 +3,8 @@ import { useMeta } from "../context/MetaContext";
 import { changeClass, formatPercentChange } from "../lib/format";
 import { getImageUrl, getPoeNinjaUrl } from "../lib/marketData";
 import type { BestInvestment as BestInvestmentEntry, FavoriteItem } from "../types";
+import FavoriteStar from "./FavoriteStar";
 import InvestmentTrend from "./InvestmentTrend";
-import RemoveFavoriteButton from "./RemoveFavoriteButton";
 
 function BestInvestment({
   title,
@@ -16,7 +16,8 @@ function BestInvestment({
   currentDayOfLeague,
   daysBack,
   daysForward,
-  onRemoveFavorite,
+  isFavorite,
+  onToggleFavorite,
   extraContent,
 }: {
   title: ReactNode;
@@ -28,10 +29,8 @@ function BestInvestment({
   currentDayOfLeague: number;
   daysBack: number;
   daysForward: number;
-  // Only passed for the Favorites section — when present, every card gets a
-  // top-right × to unfavorite it directly, instead of only being able to
-  // pin/unpin via the search bar.
-  onRemoveFavorite?: (favorite: FavoriteItem) => void;
+  isFavorite: (itemId: string, pairId: string) => boolean;
+  onToggleFavorite: (favorite: FavoriteItem) => void;
   // Rendered right under the title in every state (loading/empty/loaded) —
   // currently just the favorites search box, so it's always reachable even
   // before anything's been pinned yet.
@@ -41,7 +40,12 @@ function BestInvestment({
   const leagueById = new Map(leagues.map((league) => [league.id, league]));
   const fallbackLeagueName = leagues[0]?.name ?? "";
 
-  if (isLoading) {
+  // Skeletons are only for the true first load — once we already have data
+  // (e.g. a refetch triggered by toggling a favorite, or nudging a filter),
+  // keep showing it as-is while the new response comes in rather than
+  // discarding it for a full skeleton flash the user would see as every
+  // card "ghosting" for a moment.
+  if (isLoading && investments.length === 0) {
     return (
       <section className="best-investment">
         <h2 className="best-investment-title">{title}</h2>
@@ -97,18 +101,17 @@ function BestInvestment({
             key={`${investment.item.id}-${investment.pairId}`}
             className="best-investment-card"
           >
-            {onRemoveFavorite && (
-              <RemoveFavoriteButton
-                onRemove={() =>
-                  onRemoveFavorite({
-                    category: investment.item.category,
-                    itemId: investment.item.id,
-                    pairId: investment.pairId,
-                  })
-                }
-                itemName={investment.item.name}
-              />
-            )}
+            <FavoriteStar
+              isFavorite={isFavorite(investment.item.id, investment.pairId)}
+              onToggle={() =>
+                onToggleFavorite({
+                  category: investment.item.category,
+                  itemId: investment.item.id,
+                  pairId: investment.pairId,
+                })
+              }
+              itemName={investment.item.name}
+            />
             <div className="best-investment-card-header">
               <img
                 className="best-investment-image"
