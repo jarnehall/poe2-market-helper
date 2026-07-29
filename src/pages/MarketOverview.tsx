@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import AveragePairsToggle from "../components/AveragePairsToggle";
 import BestInvestment from "../components/BestInvestment";
 import CategoryFilter from "../components/CategoryFilter";
 import ChevronIcon from "../components/ChevronIcon";
@@ -15,7 +16,7 @@ import { useLeague } from "../context/LeagueContext";
 import { useMeta } from "../context/MetaContext";
 import { fetchBestInvestments, fetchFavorites } from "../lib/api";
 import { formatDate, formatTimeUntil } from "../lib/format";
-import { getImageUrl } from "../lib/marketData";
+import { DEFAULT_CURRENT_DATE, getDayOfLeagueForDate, getImageUrl } from "../lib/marketData";
 import type { BestInvestment as BestInvestmentEntry, PoeNinjaStatus } from "../types";
 
 type QueryStatus = "loading" | "error" | "success";
@@ -42,7 +43,7 @@ function MarketOverview() {
   const requestLeagueIds = liveLeague
     ? [...selectedLeagueIds, liveLeague.id]
     : selectedLeagueIds;
-  const { filters, setInvestmentCount, setMinVolume } = useFilters();
+  const { filters, setInvestmentCount, setMinVolume, setUseAveragePairs } = useFilters();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filtersMenuRef = useRef<HTMLDivElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -93,6 +94,7 @@ function MarketOverview() {
           daysForward: filters.daysForward,
           count: filters.investmentCount,
           minVolume: filters.minVolume,
+          useAveragePairs: filters.useAveragePairs,
         },
         controller.signal,
       )
@@ -241,6 +243,17 @@ function MarketOverview() {
     new Date(currentLeague.startDate).getTime() <= Date.now();
   const hasPoeNinjaFailures = (poeNinjaStatus?.failedItemIds.length ?? 0) > 0;
 
+  // The league's actual current day, independent of whatever day the
+  // slider is browsing — same clamped calculation DayOfLeagueSlider uses
+  // for its own "(today: day N)" hint.
+  const todayDayOfLeague = Math.min(
+    Math.max(
+      getDayOfLeagueForDate(DEFAULT_CURRENT_DATE, currentLeague.startDate),
+      bounds.minDayOfLeague,
+    ),
+    bounds.maxDayOfLeague,
+  );
+
   // Favorites not yet resolved locally (see the reconciling effect above) —
   // typically one pinned via search, whose data isn't already sitting in
   // `investments`. Rendered as trailing skeleton cards so there's still
@@ -334,6 +347,10 @@ function MarketOverview() {
                     minCount={bounds.minBestInvestmentCount}
                     maxCount={bounds.maxBestInvestmentCount}
                   />
+                  <AveragePairsToggle
+                    checked={filters.useAveragePairs}
+                    onChange={setUseAveragePairs}
+                  />
                   <div className="settings-info">
                     <p className="settings-info-line">
                       {visitorCount} unique visitor{visitorCount === 1 ? "" : "s"} since last deploy
@@ -376,7 +393,7 @@ function MarketOverview() {
             </span>
           </p>
           <p className="league-banner-started">
-            <span className="league-banner-started-text">Day {filters.currentDayOfLeague}</span>
+            <span className="league-banner-started-text">Day {todayDayOfLeague}</span>
           </p>
         </header>
         {favoritesStatus !== "error" && (

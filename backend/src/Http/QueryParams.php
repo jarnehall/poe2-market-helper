@@ -39,4 +39,9 @@ final class QueryParams
 
         return max($min, min($max, $n));
     }
+
+    public static function bool(mixed $value): bool
+    {
+        return $value === '1' || $value === 'true';
+    }
 }

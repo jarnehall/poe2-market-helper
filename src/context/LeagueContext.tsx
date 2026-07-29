@@ -12,6 +12,11 @@ interface LeagueContextValue {
   selectedLeagues: LeagueMeta[]
   isLeagueSelected: (leagueId: string) => boolean
   toggleLeague: (leagueId: string) => void
+  // Which league's badge (if any) is currently hovered — purely ephemeral
+  // UI state (not persisted), read by every chart on the page so hovering
+  // one badge can highlight that league's line across all of them at once.
+  hoveredLeagueId: string | null
+  setHoveredLeagueId: (leagueId: string | null) => void
 }
 
 const LeagueContext = createContext<LeagueContextValue | null>(null)
@@ -57,6 +62,8 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
     [leagues, selectedLeagueIds],
   )
 
+  const [hoveredLeagueId, setHoveredLeagueId] = useState<string | null>(null)
+
   const value = useMemo<LeagueContextValue>(
     () => ({
       leagues,
@@ -66,8 +73,10 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
       selectedLeagues,
       isLeagueSelected: (leagueId: string) => selectedLeagueIds.includes(leagueId),
       toggleLeague,
+      hoveredLeagueId,
+      setHoveredLeagueId,
     }),
-    [leagues, selectableLeagues, liveLeague, selectedLeagues, selectedLeagueIds],
+    [leagues, selectableLeagues, liveLeague, selectedLeagues, selectedLeagueIds, hoveredLeagueId],
   )
 
   return (

@@ -177,6 +177,86 @@ check(($best[0]['item']['id'] ?? null) === 'chaos', 'the ranked investment is fo
 check(($best[0]['pairId'] ?? null) === 'divine', 'the higher-performing pair (divine, +100%) is kept over the lower one (exalted, +20%)');
 check(closeTo($best[0]['percentChange'] ?? null, 100.0), 'the kept pair\'s percent change is the divine pair\'s own window change (day3->day5, ignoring day1)');
 
+// --- getBestInvestmentsForWindow: $useAveragePairs averages every ---
+// --- qualifying pair's change instead of keeping only the best one ---
+
+$averaged = MarketData::getBestInvestmentsForWindow(
+    [$league],
+    count: 10,
+    currentDayOfLeague: 3,
+    daysForward: 2,
+    minVolume: 0,
+    useAveragePairs: true,
+);
+
+check(count($averaged) === 1, 'useAveragePairs still yields exactly one investment for the item');
+check(
+    ($averaged[0]['pairId'] ?? null) === 'divine',
+    'useAveragePairs still shows the best-performing pair (divine) for the chart/versus display',
+);
+check(
+    closeTo($averaged[0]['percentChange'] ?? null, 60.0),
+    'useAveragePairs reports the average of both qualifying pairs (100% and 20% -> 60%), not just divine\'s own 100%',
+);
+
+// A losing pair is never itself "a best investment" candidate (see the
+// $percentChange <= 0 continue above) — useAveragePairs must not fold it
+// into the average either, on a fixture isolated from $league above so it
+// doesn't disturb getAllPairsForItem's "exactly 2 pairs" assertion.
+$mixedSignLeague = [
+    'id' => 'test-league',
+    'name' => 'Test League',
+    'color' => '#000000',
+    'startDate' => $leagueStart,
+    'itemEntries' => [[
+        'item' => ['id' => 'mixed', 'name' => 'Mixed Item', 'image' => '/mixed.png', 'category' => 'Currency', 'detailsId' => 'mixed'],
+        'pairs' => [
+            [
+                'id' => 'good',
+                'rate' => 40.0,
+                'volumePrimaryValue' => 100,
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 40.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 20.0, 'volumePrimaryValue' => 100],
+                ],
+            ],
+            [
+                'id' => 'bad',
+                'rate' => 20.0,
+                'volumePrimaryValue' => 100,
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 20.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 40.0, 'volumePrimaryValue' => 100],
+                ],
+            ],
+        ],
+        'core' => [
+            'items' => [
+                ['id' => 'good', 'name' => 'Good Orb', 'image' => '/good.png', 'category' => 'Currency', 'detailsId' => 'good-orb'],
+                ['id' => 'bad', 'name' => 'Bad Orb', 'image' => '/bad.png', 'category' => 'Currency', 'detailsId' => 'bad-orb'],
+            ],
+            'rates' => [],
+            'primary' => 'good',
+            'secondary' => 'bad',
+        ],
+    ]],
+];
+
+$mixedAveraged = MarketData::getBestInvestmentsForWindow(
+    [$mixedSignLeague],
+    count: 10,
+    currentDayOfLeague: 3,
+    daysForward: 2,
+    minVolume: 0,
+    useAveragePairs: true,
+);
+
+check(count($mixedAveraged) === 1, 'the item with one winning and one losing pair still qualifies (via the winning pair)');
+check(
+    closeTo($mixedAveraged[0]['percentChange'] ?? null, 100.0),
+    'useAveragePairs reports just the winning pair\'s own +100%, not an average dragged down by the losing pair\'s -50% (which was never a qualifying candidate)',
+);
+
 check(MarketData::getPairDisplayName('exalted', [$league]) === 'Exalted Orb', 'getPairDisplayName resolves a pair id via core.items');
 check(MarketData::getPairImage('exalted', [$league]) === '/exalted.png', 'getPairImage resolves a pair id via core.items');
 check(MarketData::getPairDisplayName('unknown-pair', [$league]) === 'unknown-pair', 'getPairDisplayName falls back to the raw id when not found');

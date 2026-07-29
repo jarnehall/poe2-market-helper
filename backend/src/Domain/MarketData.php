@@ -220,7 +220,15 @@ final class MarketData
      * change from currentDayOfLeague to daysForward days after it, averaged
      * across the given leagues. Only actual gains are included; losses are
      * never "a best investment". Each item appears at most once, represented
-     * by its best-performing pair.
+     * by its best-performing pair — unless $useAveragePairs is set, in which
+     * case the item's reported/ranked percentChange is instead the average
+     * across *every* qualifying pair it has (still each pair's own
+     * volume/minVolume and positive-change requirements apply first; a pair
+     * that doesn't clear those simply isn't part of the average, same as it
+     * wouldn't be a candidate for "best" otherwise). Either way, the chart/
+     * versus display still comes from the single best-performing pair — only
+     * the headline percentChange (and therefore ranking/top-N/positive-only
+     * filtering) changes between the two modes.
      */
     public static function getBestInvestmentsForWindow(
         array $leagues,
@@ -228,6 +236,7 @@ final class MarketData
         int $currentDayOfLeague,
         int $daysForward,
         float $minVolume,
+        bool $useAveragePairs = false,
     ): array {
         // Indexed once per call (a plain local variable — never a `static`
         // cache across requests, since itemEntries differ by request
@@ -250,6 +259,14 @@ final class MarketData
 
         foreach (self::getMergedItemEntries($leagues) as $merged) {
             $item = $merged['item'];
+
+            // Every pair of this item that clears minVolume and has a
+            // positive average change — i.e. every candidate that could be
+            // "the best pair" — collected up front so $useAveragePairs can
+            // average across all of them; the single best of these (by its
+            // own percentChange) is always what supplies the chart/versus
+            // display, in both modes.
+            $qualifyingPairs = [];
 
             foreach ($merged['pairIds'] as $pairId) {
                 $volumes = [];
@@ -303,17 +320,36 @@ final class MarketData
                     continue;
                 }
 
-                $existing = $bestByItemId[$item['id']] ?? null;
-                if ($existing === null || $percentChange > $existing['percentChange']) {
-                    $bestByItemId[$item['id']] = [
-                        'item' => $item,
-                        'pairId' => $pairId,
-                        'percentChange' => $percentChange,
-                        'leagueChanges' => $leagueChanges,
-                        'leagueHistories' => $leagueHistories,
-                    ];
+                $qualifyingPairs[] = [
+                    'pairId' => $pairId,
+                    'percentChange' => $percentChange,
+                    'leagueChanges' => $leagueChanges,
+                    'leagueHistories' => $leagueHistories,
+                ];
+            }
+
+            if ($qualifyingPairs === []) {
+                continue;
+            }
+
+            $best = $qualifyingPairs[0];
+            foreach ($qualifyingPairs as $candidate) {
+                if ($candidate['percentChange'] > $best['percentChange']) {
+                    $best = $candidate;
                 }
             }
+
+            $percentChange = $useAveragePairs
+                ? self::average(array_map(fn(array $pair): float => $pair['percentChange'], $qualifyingPairs))
+                : $best['percentChange'];
+
+            $bestByItemId[$item['id']] = [
+                'item' => $item,
+                'pairId' => $best['pairId'],
+                'percentChange' => $percentChange,
+                'leagueChanges' => $best['leagueChanges'],
+                'leagueHistories' => $best['leagueHistories'],
+            ];
         }
 
         $result = array_values($bestByItemId);

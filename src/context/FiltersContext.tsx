@@ -2,8 +2,10 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { DEFAULT_CURRENT_DATE, getDayOfLeagueForDate } from '../lib/marketData'
 import {
+  getStoredBoolean,
   getStoredNumber,
   getStoredStringArray,
+  setStoredBoolean,
   setStoredNumber,
   setStoredStringArray,
 } from '../lib/storage'
@@ -17,6 +19,10 @@ export interface FiltersState {
   daysForward: number
   investmentCount: number
   minVolume: number
+  // When true, an item's displayed/ranked percentChange is the average
+  // across every pair it qualifies with, instead of just its
+  // best-performing one (see MarketData::getBestInvestmentsForWindow).
+  useAveragePairs: boolean
 }
 
 interface FiltersContextValue {
@@ -34,6 +40,7 @@ interface FiltersContextValue {
   setDaysForward: (days: number) => void
   setInvestmentCount: (count: number) => void
   setMinVolume: (volume: number) => void
+  setUseAveragePairs: (useAveragePairs: boolean) => void
 }
 
 const FiltersContext = createContext<FiltersContextValue | null>(null)
@@ -58,6 +65,7 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
     daysForward: bounds.defaultDaysForward,
     investmentCount: bounds.defaultBestInvestmentCount,
     minVolume: bounds.defaultMinVolume,
+    useAveragePairs: false,
   })
 
   const storedFilters = (): FiltersState => {
@@ -72,6 +80,7 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       daysForward: getStoredNumber('daysForward', defaults.daysForward),
       investmentCount: getStoredNumber('investmentCount', defaults.investmentCount),
       minVolume: getStoredNumber('minVolume', defaults.minVolume),
+      useAveragePairs: getStoredBoolean('useAveragePairs', defaults.useAveragePairs),
     }
   }
 
@@ -88,6 +97,7 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
     setStoredNumber('daysForward', filtersRaw.daysForward)
     setStoredNumber('investmentCount', filtersRaw.investmentCount)
     setStoredNumber('minVolume', filtersRaw.minVolume)
+    setStoredBoolean('useAveragePairs', filtersRaw.useAveragePairs)
   }, [filtersRaw])
 
   // Days back/forward can never reach further than the day-of-league range
@@ -155,6 +165,8 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
           ...current,
           minVolume: clamp(volume, bounds.minVolumeFilter, bounds.maxVolumeFilter),
         })),
+      setUseAveragePairs: (useAveragePairs) =>
+        setFiltersRaw((current) => ({ ...current, useAveragePairs })),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filters, maxDaysBack, maxDaysForward, bounds],

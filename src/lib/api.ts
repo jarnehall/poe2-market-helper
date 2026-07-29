@@ -28,6 +28,7 @@ export interface BestInvestmentsParams {
   daysForward: number
   count: number
   minVolume: number
+  useAveragePairs: boolean
 }
 
 export function fetchBestInvestments(
@@ -43,6 +44,7 @@ export function fetchBestInvestments(
     daysForward: String(params.daysForward),
     count: String(params.count),
     minVolume: String(params.minVolume),
+    useAveragePairs: String(params.useAveragePairs),
   })
 
   return fetchJson<BestInvestmentsResponse>(`/api/best-investments?${query.toString()}`, signal)

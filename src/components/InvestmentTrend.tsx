@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
+import { useLeague } from "../context/LeagueContext";
 import { useMeta } from "../context/MetaContext";
 import { changeClass, formatDate, formatPercentChange, formatRate } from "../lib/format";
 import { getImageUrl } from "../lib/marketData";
@@ -33,6 +34,7 @@ function InvestmentTrend({
   daysForward: number;
 }) {
   const { leagues } = useMeta();
+  const { hoveredLeagueId, setHoveredLeagueId } = useLeague();
   const [hovered, setHovered] = useState<HoveredPoint | null>(null);
   const [tooltipOffset, setTooltipOffset] = useState({ x: 0, y: 0 });
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -79,6 +81,23 @@ function InvestmentTrend({
     });
   }, [hovered]);
 
+  const clearHover = () => {
+    setHovered(null);
+    setHoveredLeagueId(null);
+  };
+
+  // Scrolling moves the hovered point out from under a stationary cursor
+  // without the browser ever firing a mouseleave on it, so the tooltip
+  // (anchored to the point's last-known clientX/clientY, now stale) would
+  // otherwise stay stuck on screen. Capture phase so this catches scrolling
+  // on any ancestor scroll container, not just the window itself.
+  useEffect(() => {
+    if (!hovered) return;
+    window.addEventListener("scroll", clearHover, true);
+    return () => window.removeEventListener("scroll", clearHover, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hovered]);
+
   const startDay = currentDayOfLeague - daysBack;
   const endDay = currentDayOfLeague + daysForward;
   const dayRange = endDay - startDay || 1;
@@ -120,6 +139,21 @@ function InvestmentTrend({
 
   const pairImageUrl = pairImage ? getImageUrl(pairImage) : undefined;
 
+  // Hovering a league's badge (see LeagueBadges) should make its line easy
+  // to pick out on every chart on the page at once — moved to the end so
+  // it paints last (SVG stacks later-in-document elements on top), with
+  // every other league's line/points dimmed alongside it.
+  const orderedLeagueRows = perLeagueRows.slice().reverse();
+  if (hoveredLeagueId) {
+    const hoveredIndex = orderedLeagueRows.findIndex(
+      ({ league }) => league.id === hoveredLeagueId,
+    );
+    if (hoveredIndex !== -1) {
+      const [hoveredEntry] = orderedLeagueRows.splice(hoveredIndex, 1);
+      orderedLeagueRows.push(hoveredEntry);
+    }
+  }
+
   return (
     <div className="investment-trend-wrap">
       <svg
@@ -152,66 +186,68 @@ function InvestmentTrend({
             </g>
           ))}
         </g>
-        {perLeagueRows
-          .slice()
-          .reverse()
-          .map(({ league, rows }) => {
-            const points = rows.map((row) => ({
-              x: xForDay(row.dayOfLeague),
-              y: yForRate(row.rate),
-              row,
-            }));
-            const linePath = points
-              .map(
-                (point, index) =>
-                  `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`,
-              )
-              .join(" ");
+        {orderedLeagueRows.map(({ league, rows }) => {
+          const points = rows.map((row) => ({
+            x: xForDay(row.dayOfLeague),
+            y: yForRate(row.rate),
+            row,
+          }));
+          const linePath = points
+            .map(
+              (point, index) =>
+                `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`,
+            )
+            .join(" ");
+          const isDimmed = hoveredLeagueId !== null && hoveredLeagueId !== league.id;
 
-            return (
-              <g key={league.id}>
-                <path
-                  className="investment-trend-line"
-                  style={{ stroke: league.color }}
-                  d={linePath}
-                  fill="none"
-                />
-                {points.map(({ x, y, row }) => {
-                  const isCurrentDay = row.dayOfLeague === currentDayOfLeague;
-                  return (
-                    <g key={row.dayOfLeague}>
-                      <circle
-                        className={
-                          isCurrentDay
-                            ? "investment-trend-point-current"
-                            : "investment-trend-point"
-                        }
-                        style={{ fill: league.color }}
-                        cx={x}
-                        cy={y}
-                        r={isCurrentDay ? 3 : 1.5}
-                      />
-                      <circle
-                        className="investment-trend-point-hit-area"
-                        cx={x}
-                        cy={y}
-                        r={5}
-                        onMouseEnter={(event: ReactMouseEvent) =>
-                          setHovered({
-                            league,
-                            row,
-                            clientX: event.clientX,
-                            clientY: event.clientY,
-                          })
-                        }
-                        onMouseLeave={() => setHovered(null)}
-                      />
-                    </g>
-                  );
-                })}
-              </g>
-            );
-          })}
+          return (
+            <g
+              key={league.id}
+              style={{ opacity: isDimmed ? 0.5 : 1, transition: "opacity 0.15s ease" }}
+            >
+              <path
+                className="investment-trend-line"
+                style={{ stroke: league.color }}
+                d={linePath}
+                fill="none"
+              />
+              {points.map(({ x, y, row }) => {
+                const isCurrentDay = row.dayOfLeague === currentDayOfLeague;
+                return (
+                  <g key={row.dayOfLeague}>
+                    <circle
+                      className={
+                        isCurrentDay
+                          ? "investment-trend-point-current"
+                          : "investment-trend-point"
+                      }
+                      style={{ fill: league.color }}
+                      cx={x}
+                      cy={y}
+                      r={isCurrentDay ? 3 : 1.5}
+                    />
+                    <circle
+                      className="investment-trend-point-hit-area"
+                      cx={x}
+                      cy={y}
+                      r={5}
+                      onMouseEnter={(event: ReactMouseEvent) => {
+                        setHovered({
+                          league,
+                          row,
+                          clientX: event.clientX,
+                          clientY: event.clientY,
+                        });
+                        setHoveredLeagueId(league.id);
+                      }}
+                      onMouseLeave={clearHover}
+                    />
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
       </svg>
       {hovered && (
         <div

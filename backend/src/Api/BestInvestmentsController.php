@@ -80,6 +80,7 @@ final class BestInvestmentsController
             (float) $this->bounds['minVolumeFilter'],
             (float) $this->bounds['maxVolumeFilter'],
         );
+        $useAveragePairs = QueryParams::bool($query['useAveragePairs'] ?? null);
 
         $leagues = $this->repository->loadFiltered($leagueIds, $categories, $pairCurrencies);
         $investments = MarketData::getBestInvestmentsForWindow(
@@ -88,6 +89,7 @@ final class BestInvestmentsController
             $currentDayOfLeague,
             $daysForward,
             $minVolume,
+            $useAveragePairs,
         );
 
         $investments = $this->payloadBuilder->attachAlternatePairs($investments, $leagues, $currentDayOfLeague, $daysForward);

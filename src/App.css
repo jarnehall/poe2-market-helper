@@ -381,6 +381,26 @@
   color: var(--loss);
 }
 
+.average-pairs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.average-pairs-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--select);
+  cursor: pointer;
+}
+
+.average-pairs-toggle-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
 .filters-menu {
   position: relative;
   flex-shrink: 0;
@@ -416,7 +436,7 @@
   flex-direction: column;
   gap: 22px;
   box-sizing: border-box;
-  width: clamp(390px, 48vw, 630px);
+  width: clamp(390px, 48vw, 550px);
   max-width: calc(100vw - 32px);
   padding: 18px;
   border: 1px solid var(--border);

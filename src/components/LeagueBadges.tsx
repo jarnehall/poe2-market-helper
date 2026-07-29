@@ -3,7 +3,7 @@ import { useLeague } from '../context/LeagueContext'
 import Tooltip from './Tooltip'
 
 function LeagueBadges() {
-  const { liveLeague, selectedLeagues } = useLeague()
+  const { liveLeague, selectedLeagues, setHoveredLeagueId } = useLeague()
 
   // The live league is always active (never toggled off, and not part of
   // selectedLeagues to begin with) — it leads the badge list, followed by
@@ -27,7 +27,13 @@ function LeagueBadges() {
             style={{ '--league-color': league.color } as CSSProperties}
           >
             <span className="league-filter-badge-dot" />
-            <span className="league-filter-badge-name">{league.name}</span>
+            <span
+              className="league-filter-badge-name"
+              onMouseEnter={() => setHoveredLeagueId(league.id)}
+              onMouseLeave={() => setHoveredLeagueId(null)}
+            >
+              {league.name}
+            </span>
             {league.isLive && <span className="league-filter-current-tag">Current</span>}
           </span>
         </Tooltip>
