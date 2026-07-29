@@ -968,9 +968,11 @@
   gap: 8px;
 }
 
-/* Hover-revealed alternative to .best-investment-versus below (one lets a
-   card switch its chart to a different pair, only worth showing when there
-   actually is more than one) — occupies the same slot, never both at once. */
+/* Hover-revealed alternative to .best-investment-versus below (lets a card
+   switch its chart to a different pair) — occupies the same slot, never
+   both at once. Rendered even with just one pair (not only when there's a
+   real choice) so hovering never just makes the versus text disappear with
+   nothing in its place. */
 .pair-switcher {
   display: none;
   align-items: center;

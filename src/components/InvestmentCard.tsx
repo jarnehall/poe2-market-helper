@@ -108,7 +108,7 @@ function InvestmentCard({
           )}
           <span className="best-investment-versus-name">{activePair.pairName}</span>
         </span>
-        {pairs.length > 1 && (
+        {pairs.length > 0 && (
           <div className="pair-switcher">
             {pairs.map((pair) => (
               <Tooltip key={pair.pairId} text={pair.pairName}>

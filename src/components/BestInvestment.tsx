@@ -50,9 +50,10 @@ function BestInvestment({
   skeletonCount: number;
   // Extra skeleton cards appended after the already-loaded ones — e.g. a
   // favorite just pinned via search, whose data we don't have yet, while
-  // the rest of the list keeps showing what's already loaded. Distinct from
-  // the full-list skeleton below (isLoading && investments.length === 0),
-  // which is only for when nothing at all has loaded yet.
+  // the rest of the list keeps showing what's already loaded. Only relevant
+  // when the caller passes isLoading={false} despite a fetch being in
+  // flight (see MarketOverview's favoritesIsLoading) — the full-list
+  // skeleton below takes over whenever isLoading is true.
   pendingSkeletonCount?: number;
   currentDayOfLeague: number;
   daysBack: number;
@@ -64,12 +65,16 @@ function BestInvestment({
   // before anything's been pinned yet.
   extraContent?: ReactNode;
 }) {
-  // Skeletons are only for the true first load — once we already have data
-  // (e.g. a refetch triggered by toggling a favorite, or nudging a filter),
-  // keep showing it as-is while the new response comes in rather than
-  // discarding it for a full skeleton flash the user would see as every
-  // card "ghosting" for a moment.
-  if (isLoading && investments.length === 0) {
+  // Shows the full skeleton grid for as long as the caller says it's
+  // loading — whenever a change actually invalidates what's currently shown
+  // (a filter, the day window, league selection, ...), so it's immediately
+  // obvious the change took effect rather than silently leaving stale
+  // cards on screen until the new response arrives. It's up to the caller
+  // to only pass isLoading={true} when that's actually the case (see
+  // MarketOverview's favoritesIsLoading) — e.g. pinning one more favorite
+  // doesn't invalidate the rest of the list, so that alone shouldn't
+  // trigger this.
+  if (isLoading) {
     return (
       <section className="best-investment">
         <h2 className="best-investment-title">{title}</h2>
@@ -85,7 +90,11 @@ function BestInvestment({
     );
   }
 
-  if (investments.length === 0) {
+  // Not just investments.length === 0 — a pending pin (e.g. the very first
+  // favorite added via search, before any others exist to resolve it
+  // instantly) means there's still something to show as skeleton below,
+  // even though nothing real has loaded yet.
+  if (investments.length === 0 && pendingSkeletonCount === 0) {
     return (
       <section className="best-investment best-investment-none">
         <h2 className="best-investment-title">{title}</h2>

@@ -73,10 +73,15 @@ function MarketOverview() {
     daysBack: filters.daysBack,
     daysForward: filters.daysForward,
   }));
+  // Also tracks requestLeagueIds (unlike appliedWindow above) so it can
+  // double as the "is favoriteInvestments actually stale" signature below —
+  // a pin/unpin alone doesn't change this, only the day window or league
+  // selection does.
   const [appliedFavoritesWindow, setAppliedFavoritesWindow] = useState(() => ({
     currentDayOfLeague: filters.currentDayOfLeague,
     daysBack: filters.daysBack,
     daysForward: filters.daysForward,
+    leagueIds: requestLeagueIds,
   }));
 
   useEffect(() => {
@@ -155,6 +160,7 @@ function MarketOverview() {
         currentDayOfLeague: filters.currentDayOfLeague,
         daysBack: filters.daysBack,
         daysForward: filters.daysForward,
+        leagueIds: requestLeagueIds,
       });
       return;
     }
@@ -180,6 +186,7 @@ function MarketOverview() {
             currentDayOfLeague: filters.currentDayOfLeague,
             daysBack: filters.daysBack,
             daysForward: filters.daysForward,
+            leagueIds: requestLeagueIds,
           });
         })
         .catch((error: unknown) => {
@@ -264,6 +271,20 @@ function MarketOverview() {
   const pendingFavoritesCount = favorites.filter(
     (favorite) => !loadedFavoriteKeys.has(`${favorite.itemId}::${favorite.pairId}`),
   ).length;
+
+  // True only while favoriteInvestments is stale for a reason that
+  // invalidates the *whole* list (the day window or league selection
+  // changed) — a full skeleton is the right feedback there, same as Best
+  // investments. A pin/unpin alone doesn't reach here: it's resolved
+  // instantly by the reconciling effect above (or, for a brand new pin,
+  // shown via pendingFavoritesCount) without needing the rest of the list
+  // to flash back to skeleton.
+  const favoritesDataStale =
+    appliedFavoritesWindow.currentDayOfLeague !== filters.currentDayOfLeague ||
+    appliedFavoritesWindow.daysBack !== filters.daysBack ||
+    appliedFavoritesWindow.daysForward !== filters.daysForward ||
+    appliedFavoritesWindow.leagueIds.join(",") !== requestLeagueIds.join(",");
+  const favoritesIsLoading = favoritesStatus === "loading" && favoritesDataStale;
 
   return (
     <>
@@ -402,7 +423,7 @@ function MarketOverview() {
             caption={`Rate change from day ${filters.currentDayOfLeague} to day ${filters.currentDayOfLeague + filters.daysForward}.`}
             emptyMessage=""
             investments={favoriteInvestments}
-            isLoading={favoritesStatus === "loading"}
+            isLoading={favoritesIsLoading}
             skeletonCount={favorites.length}
             pendingSkeletonCount={pendingFavoritesCount}
             currentDayOfLeague={appliedFavoritesWindow.currentDayOfLeague}
