@@ -9,7 +9,28 @@ import {
   setStoredNumber,
   setStoredStringArray,
 } from '../lib/storage'
+import { getUrlParam, sameElements, setUrlParams, splitUrlList } from '../lib/urlParams'
 import { useMeta } from './MetaContext'
+
+// Short, shareable query keys — kept intentionally terse (see setUrlParams
+// callers below) so a link carrying someone's exact settings stays short:
+// d=day, db=days-back, df=days-forward, n=investment count, v=min volume,
+// a=average-pairs, c=categories, p=pair currencies (traded against).
+const URL_KEYS = {
+  currentDayOfLeague: 'd',
+  daysBack: 'db',
+  daysForward: 'df',
+  investmentCount: 'n',
+  minVolume: 'v',
+  useAveragePairs: 'a',
+  categories: 'c',
+  pairCurrencies: 'p',
+} as const
+
+function parseUrlNumber(raw: string, fallback: number): number {
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : fallback
+}
 
 export interface FiltersState {
   categories: string[]
@@ -33,6 +54,9 @@ interface FiltersContextValue {
   filters: FiltersState
   maxDaysBack: number
   maxDaysForward: number
+  // True when every field already matches its computed default — lets a
+  // "Reset all filters" control disable itself rather than being a no-op.
+  isDefault: boolean
   toggleCategory: (category: string) => void
   togglePairCurrency: (pairId: string) => void
   setCurrentDayOfLeague: (day: number) => void
@@ -41,6 +65,7 @@ interface FiltersContextValue {
   setInvestmentCount: (count: number) => void
   setMinVolume: (volume: number) => void
   setUseAveragePairs: (useAveragePairs: boolean) => void
+  resetFilters: () => void
 }
 
 const FiltersContext = createContext<FiltersContextValue | null>(null)
@@ -68,19 +93,62 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
     useAveragePairs: false,
   })
 
+  // A query param always wins over both localStorage and the computed
+  // default — that's the whole point of a shareable link: opening someone
+  // else's URL should show *their* settings regardless of whatever this
+  // browser already had saved.
   const storedFilters = (): FiltersState => {
     const defaults = defaultFilters()
+
+    const urlCategories = getUrlParam(URL_KEYS.categories)
+    const urlPairCurrencies = getUrlParam(URL_KEYS.pairCurrencies)
+    const urlDay = getUrlParam(URL_KEYS.currentDayOfLeague)
+    const urlDaysBack = getUrlParam(URL_KEYS.daysBack)
+    const urlDaysForward = getUrlParam(URL_KEYS.daysForward)
+    const urlCount = getUrlParam(URL_KEYS.investmentCount)
+    const urlVolume = getUrlParam(URL_KEYS.minVolume)
+    const urlAverage = getUrlParam(URL_KEYS.useAveragePairs)
+
     return {
-      categories: getStoredStringArray('selectedCategories', defaults.categories),
-      pairCurrencies: getStoredStringArray('selectedPairCurrencies', defaults.pairCurrencies),
-      // Deliberately not read from localStorage — the day slider should
-      // always default to today's date, not the last day the user viewed.
-      currentDayOfLeague: defaults.currentDayOfLeague,
-      daysBack: getStoredNumber('daysBack', defaults.daysBack),
-      daysForward: getStoredNumber('daysForward', defaults.daysForward),
-      investmentCount: getStoredNumber('investmentCount', defaults.investmentCount),
-      minVolume: getStoredNumber('minVolume', defaults.minVolume),
-      useAveragePairs: getStoredBoolean('useAveragePairs', defaults.useAveragePairs),
+      categories:
+        urlCategories !== null
+          ? splitUrlList(urlCategories).filter((category) => meta.categories.includes(category))
+          : getStoredStringArray('selectedCategories', defaults.categories),
+      pairCurrencies:
+        urlPairCurrencies !== null
+          ? splitUrlList(urlPairCurrencies).filter((id) =>
+              meta.pairCurrencies.some((pairCurrency) => pairCurrency.id === id),
+            )
+          : getStoredStringArray('selectedPairCurrencies', defaults.pairCurrencies),
+      // Deliberately not read from localStorage otherwise — the day slider
+      // should always default to today's date, not the last day this
+      // browser viewed — but an explicit ?d= from a shared link still wins.
+      currentDayOfLeague:
+        urlDay !== null
+          ? clamp(parseUrlNumber(urlDay, defaults.currentDayOfLeague), bounds.minDayOfLeague, bounds.maxDayOfLeague)
+          : defaults.currentDayOfLeague,
+      daysBack:
+        urlDaysBack !== null
+          ? parseUrlNumber(urlDaysBack, defaults.daysBack)
+          : getStoredNumber('daysBack', defaults.daysBack),
+      daysForward:
+        urlDaysForward !== null
+          ? parseUrlNumber(urlDaysForward, defaults.daysForward)
+          : getStoredNumber('daysForward', defaults.daysForward),
+      investmentCount:
+        urlCount !== null
+          ? clamp(
+              parseUrlNumber(urlCount, defaults.investmentCount),
+              bounds.minBestInvestmentCount,
+              bounds.maxBestInvestmentCount,
+            )
+          : getStoredNumber('investmentCount', defaults.investmentCount),
+      minVolume:
+        urlVolume !== null
+          ? clamp(parseUrlNumber(urlVolume, defaults.minVolume), bounds.minVolumeFilter, bounds.maxVolumeFilter)
+          : getStoredNumber('minVolume', defaults.minVolume),
+      useAveragePairs:
+        urlAverage !== null ? urlAverage === '1' : getStoredBoolean('useAveragePairs', defaults.useAveragePairs),
     }
   }
 
@@ -127,11 +195,54 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
     [filtersRaw, maxDaysBack, maxDaysForward],
   )
 
+  // Keeps the URL's query string in sync with whatever's actually different
+  // from default — the reverse of storedFilters() above — so the address
+  // bar always reflects a link someone could share to reproduce this exact
+  // view. A field that matches its default is removed from the URL rather
+  // than written as its default value, so the URL only ever grows for
+  // choices that actually diverge.
+  useEffect(() => {
+    const defaults = defaultFilters()
+    setUrlParams({
+      [URL_KEYS.categories]: sameElements(filters.categories, defaults.categories)
+        ? null
+        : filters.categories.join(','),
+      [URL_KEYS.pairCurrencies]: sameElements(filters.pairCurrencies, defaults.pairCurrencies)
+        ? null
+        : filters.pairCurrencies.join(','),
+      [URL_KEYS.currentDayOfLeague]:
+        filters.currentDayOfLeague === defaults.currentDayOfLeague ? null : String(filters.currentDayOfLeague),
+      [URL_KEYS.daysBack]: filters.daysBack === defaults.daysBack ? null : String(filters.daysBack),
+      [URL_KEYS.daysForward]: filters.daysForward === defaults.daysForward ? null : String(filters.daysForward),
+      [URL_KEYS.investmentCount]:
+        filters.investmentCount === defaults.investmentCount ? null : String(filters.investmentCount),
+      [URL_KEYS.minVolume]: filters.minVolume === defaults.minVolume ? null : String(filters.minVolume),
+      [URL_KEYS.useAveragePairs]: filters.useAveragePairs ? '1' : null,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters])
+
+  const isDefault = useMemo(() => {
+    const defaults = defaultFilters()
+    return (
+      sameElements(filters.categories, defaults.categories) &&
+      sameElements(filters.pairCurrencies, defaults.pairCurrencies) &&
+      filters.currentDayOfLeague === defaults.currentDayOfLeague &&
+      filters.daysBack === defaults.daysBack &&
+      filters.daysForward === defaults.daysForward &&
+      filters.investmentCount === defaults.investmentCount &&
+      filters.minVolume === defaults.minVolume &&
+      filters.useAveragePairs === defaults.useAveragePairs
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters])
+
   const value = useMemo<FiltersContextValue>(
     () => ({
       filters,
       maxDaysBack,
       maxDaysForward,
+      isDefault,
       toggleCategory: (category) =>
         setFiltersRaw((current) => ({
           ...current,
@@ -167,9 +278,10 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
         })),
       setUseAveragePairs: (useAveragePairs) =>
         setFiltersRaw((current) => ({ ...current, useAveragePairs })),
+      resetFilters: () => setFiltersRaw(defaultFilters()),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, maxDaysBack, maxDaysForward, bounds],
+    [filters, maxDaysBack, maxDaysForward, isDefault, bounds],
   )
 
   return <FiltersContext.Provider value={value}>{children}</FiltersContext.Provider>

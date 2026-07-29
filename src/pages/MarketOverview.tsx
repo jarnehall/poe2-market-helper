@@ -10,6 +10,7 @@ import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
 import PairCurrencyFilter from "../components/PairCurrencyFilter";
+import ResetFiltersButton from "../components/ResetFiltersButton";
 import { useFavorites } from "../context/FavoritesContext";
 import { useFilters } from "../context/FiltersContext";
 import { useLeague } from "../context/LeagueContext";
@@ -17,6 +18,7 @@ import { useMeta } from "../context/MetaContext";
 import { fetchBestInvestments, fetchFavorites } from "../lib/api";
 import { formatDate, formatTimeUntil } from "../lib/format";
 import { DEFAULT_CURRENT_DATE, getDayOfLeagueForDate, getImageUrl } from "../lib/marketData";
+import { useKeepOnScreen } from "../lib/useKeepOnScreen";
 import type { BestInvestment as BestInvestmentEntry, PoeNinjaStatus } from "../types";
 
 type QueryStatus = "loading" | "error" | "success";
@@ -46,8 +48,10 @@ function MarketOverview() {
   const { filters, setInvestmentCount, setMinVolume, setUseAveragePairs } = useFilters();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filtersMenuRef = useRef<HTMLDivElement>(null);
+  const { ref: filtersDropdownRef, style: filtersDropdownStyle } = useKeepOnScreen<HTMLDivElement>(isFiltersOpen);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
+  const { ref: settingsDropdownRef, style: settingsDropdownStyle } = useKeepOnScreen<HTMLDivElement>(isSettingsOpen);
   const headerRef = useRef<HTMLElement>(null);
 
   const [investments, setInvestments] = useState<BestInvestmentEntry[]>([]);
@@ -300,9 +304,6 @@ function MarketOverview() {
             <span className="app-header-title-full" aria-hidden="true">
               Jarnehall&rsquo;s Market Helper
             </span>
-            <span className="app-header-title-short" aria-hidden="true">
-              JMH
-            </span>
           </span>
           <LeagueFilter>
             <div className="filters-menu" ref={filtersMenuRef}>
@@ -316,7 +317,7 @@ function MarketOverview() {
                 <ChevronIcon open={isFiltersOpen} />
               </button>
               {isFiltersOpen && (
-                <div className="filters-dropdown">
+                <div className="filters-dropdown" ref={filtersDropdownRef} style={filtersDropdownStyle}>
                   <div className="dropdown-header">
                     <button
                       type="button"
@@ -349,7 +350,7 @@ function MarketOverview() {
                 <ChevronIcon open={isSettingsOpen} />
               </button>
               {isSettingsOpen && (
-                <div className="settings-dropdown">
+                <div className="settings-dropdown" ref={settingsDropdownRef} style={settingsDropdownStyle}>
                   <div className="dropdown-header">
                     <button
                       type="button"
@@ -393,6 +394,7 @@ function MarketOverview() {
                 </div>
               )}
             </div>
+            <ResetFiltersButton />
           </LeagueFilter>
         </div>
       </header>

@@ -257,6 +257,116 @@ check(
     'useAveragePairs reports just the winning pair\'s own +100%, not an average dragged down by the losing pair\'s -50% (which was never a qualifying candidate)',
 );
 
+// useAveragePairs' leagueChanges breakdown must average across pairs
+// per-league too (not just carry over the best pair's own breakdown) — two
+// leagues where the pairs' coverage differs, so a naive "reuse the best
+// pair's leagueChanges" implementation would be caught: league-b only ever
+// has data for 'good', never 'great'.
+$leagueA = [
+    'id' => 'league-a',
+    'name' => 'League A',
+    'color' => '#aaaaaa',
+    'startDate' => $leagueStart,
+    'itemEntries' => [[
+        'item' => ['id' => 'widget', 'name' => 'Widget', 'image' => '/widget.png', 'category' => 'Currency', 'detailsId' => 'widget'],
+        'pairs' => [
+            [
+                'id' => 'good',
+                'rate' => 40.0,
+                'volumePrimaryValue' => 100,
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 40.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 20.0, 'volumePrimaryValue' => 100],
+                ],
+            ],
+            [
+                'id' => 'great',
+                'rate' => 30.0,
+                'volumePrimaryValue' => 100,
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 30.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 20.0, 'volumePrimaryValue' => 100],
+                ],
+            ],
+        ],
+        'core' => [
+            'items' => [
+                ['id' => 'good', 'name' => 'Good Orb', 'image' => '/good.png', 'category' => 'Currency', 'detailsId' => 'good-orb'],
+                ['id' => 'great', 'name' => 'Great Orb', 'image' => '/great.png', 'category' => 'Currency', 'detailsId' => 'great-orb'],
+            ],
+            'rates' => [],
+            'primary' => 'good',
+            'secondary' => 'great',
+        ],
+    ]],
+];
+$leagueB = [
+    'id' => 'league-b',
+    'name' => 'League B',
+    'color' => '#bbbbbb',
+    'startDate' => $leagueStart,
+    'itemEntries' => [[
+        'item' => ['id' => 'widget', 'name' => 'Widget', 'image' => '/widget.png', 'category' => 'Currency', 'detailsId' => 'widget'],
+        'pairs' => [
+            [
+                'id' => 'good',
+                'rate' => 36.0,
+                'volumePrimaryValue' => 100,
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 36.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 20.0, 'volumePrimaryValue' => 100],
+                ],
+            ],
+            // Deliberately no 'great' pair in this league at all.
+        ],
+        'core' => [
+            'items' => [
+                ['id' => 'good', 'name' => 'Good Orb', 'image' => '/good.png', 'category' => 'Currency', 'detailsId' => 'good-orb'],
+            ],
+            'rates' => [],
+            'primary' => 'good',
+            'secondary' => null,
+        ],
+    ]],
+];
+
+$twoLeagueAveraged = MarketData::getBestInvestmentsForWindow(
+    [$leagueA, $leagueB],
+    count: 10,
+    currentDayOfLeague: 3,
+    daysForward: 2,
+    minVolume: 0,
+    useAveragePairs: true,
+);
+
+check(count($twoLeagueAveraged) === 1, 'the two-league fixture yields exactly one investment for widget');
+check(
+    ($twoLeagueAveraged[0]['pairId'] ?? null) === 'good',
+    // good: avg(100%, 80%) = 90%; great: 50% (only league-a) -> good wins
+    'the best pair is still \'good\' (its own cross-league average of 90% beats great\'s 50%)',
+);
+check(
+    closeTo($twoLeagueAveraged[0]['percentChange'] ?? null, 70.0),
+    'headline percentChange averages both qualifying pairs\' own percentChange (90% and 50% -> 70%)',
+);
+
+$twoLeagueChangesByLeague = [];
+foreach ($twoLeagueAveraged[0]['leagueChanges'] ?? [] as $change) {
+    $twoLeagueChangesByLeague[$change['league']['id']] = $change['percentChange'];
+}
+check(count($twoLeagueChangesByLeague) === 2, 'the breakdown has one entry per league, not per pair');
+check(
+    closeTo($twoLeagueChangesByLeague['league-a'] ?? null, 75.0),
+    // league-a has both pairs: avg(good=100%, great=50%) = 75%.
+    'league-a\'s breakdown entry averages every pair with data there (good 100%, great 50% -> 75%), not just good\'s own 100%',
+);
+check(
+    closeTo($twoLeagueChangesByLeague['league-b'] ?? null, 80.0),
+    // league-b only ever has 'good': avg(80%) = 80%, not dragged toward
+    // great's number since great has no data there at all.
+    'league-b\'s breakdown entry is just good\'s own 80% (great has no data in this league to average in)',
+);
+
 check(MarketData::getPairDisplayName('exalted', [$league]) === 'Exalted Orb', 'getPairDisplayName resolves a pair id via core.items');
 check(MarketData::getPairImage('exalted', [$league]) === '/exalted.png', 'getPairImage resolves a pair id via core.items');
 check(MarketData::getPairDisplayName('unknown-pair', [$league]) === 'unknown-pair', 'getPairDisplayName falls back to the raw id when not found');

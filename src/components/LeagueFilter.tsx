@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useLeague } from '../context/LeagueContext'
+import { useKeepOnScreen } from '../lib/useKeepOnScreen'
 import ChevronIcon from './ChevronIcon'
 
 function LeagueFilter({ children }: { children?: ReactNode }) {
   const { selectableLeagues, liveLeague, isLeagueSelected, toggleLeague } = useLeague()
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const { ref: dropdownRef, style: dropdownStyle } = useKeepOnScreen<HTMLDivElement>(isOpen)
 
   useEffect(() => {
     if (!isOpen) return
@@ -32,7 +34,7 @@ function LeagueFilter({ children }: { children?: ReactNode }) {
           <ChevronIcon open={isOpen} />
         </button>
         {isOpen && (
-          <div className="league-filter-dropdown">
+          <div className="league-filter-dropdown" ref={dropdownRef} style={dropdownStyle}>
             <div className="dropdown-header">
               <button
                 type="button"

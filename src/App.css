@@ -27,8 +27,8 @@
   inset: 0;
   z-index: -1;
   background: rgba(11, 13, 17, 0.72);
-  backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
 }
 
@@ -63,31 +63,39 @@
   flex-shrink: 0;
 }
 
-.app-header-title-short {
-  display: none;
-}
-
 /* Below this, "Jarnehall's Market Helper" alongside the icon and the
-   Leagues/Filters/Settings toggles no longer fits on one row (measured:
-   wraps starting at 665px — re-measure again if more header content gets
-   added) — swapping to the initialism a bit before that point avoids the
-   header ever actually wrapping to a second line. */
-@media (max-width: 690px) {
+   Leagues/Filters/Settings/Reset row no longer fits on one row (measured:
+   wraps starting at 816px — re-measure again if more header content gets
+   added) — the title text is simply dropped rather than abbreviated, since
+   the icon alone is already enough to identify the app in a slim header. */
+@media (max-width: 840px) {
   .app-header-title-full {
     display: none;
   }
+}
 
-  .app-header-title-short {
-    display: inline;
+/* Below this, the icon-only title alongside the button row (with the
+   Reset button's own label) no longer fits (measured: wraps starting at
+   515px) — dropping "Reset all filters" to just its icon (aria-label still
+   carries the meaning for screen readers) avoids it wrapping onto its own
+   separate row underneath the other three. */
+@media (max-width: 540px) {
+  .reset-filters-button-label {
+    display: none;
   }
 }
 
-/* Even "JMH" next to the icon stops fitting alongside the three toggles
-   below this (measured: wraps starting at 420px, only just still fits at
-   430px) — past that point only the icon remains, dropping the text
-   entirely instead of wrapping to a second line. */
-@media (max-width: 440px) {
-  .app-header-title-short {
+/* Below this, even the icon-only title alongside the fully-shrunk button
+   row (Leagues/Filters/Settings text + icon-only Reset) no longer fits
+   (measured: wraps starting at 369px) — dropping the Divine Orb icon too
+   leaves just the four controls, which fit on their own down to that
+   point; only genuinely tiny screens still wrap to a second row. Hides the
+   whole .app-header-title span, not just the icon inside it — otherwise
+   the now-empty span still counts as a flex item and keeps its `gap` to
+   the button group, wasting 16px that's otherwise enough on its own to
+   force an unnecessary wrap. */
+@media (max-width: 420px) {
+  .app-header-title {
     display: none;
   }
 }
@@ -173,6 +181,8 @@
 .league-filter {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -188,7 +198,7 @@
 .league-filter-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 6px;
+  gap: 6px 12px;
   margin-bottom: 12px;
 }
 
@@ -201,7 +211,8 @@
 .filters-toggle-button,
 .settings-toggle-button,
 .category-filter-button,
-.pair-currency-filter-button {
+.pair-currency-filter-button,
+.reset-filters-button {
   padding: 6px 14px;
   border-radius: 999px;
   border: 1.5px solid var(--border);
@@ -329,7 +340,6 @@
   display: inline-flex;
   align-items: center;
   gap: 0 4px;
-  padding: 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
@@ -419,6 +429,33 @@
 .settings-toggle-button[aria-expanded="true"] {
   border-color: var(--select);
   color: var(--select);
+}
+
+/* Muted rather than matching the other header pills at full strength —
+   this is a rarely-reached-for reset, not a primary action, so it
+   shouldn't visually compete with Leagues/Filters/Settings. Disabled
+   outright (see ResetFiltersButton) once everything already IS default,
+   rather than leaving a live-looking button that would just be a no-op. */
+.reset-filters-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.reset-filters-button:hover:not(:disabled) {
+  border-color: var(--select);
+  color: var(--select);
+}
+
+.reset-filters-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.reset-icon {
+  flex-shrink: 0;
 }
 
 .chevron-icon {
@@ -1487,6 +1524,7 @@
     max-width: none;
     height: auto;
     max-height: none;
+    border: none;
     border-radius: 0;
     overflow-y: auto;
   }

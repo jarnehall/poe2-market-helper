@@ -161,6 +161,37 @@ final class MarketData
         return array_sum($values) / count($values);
     }
 
+    /**
+     * Per league, the average percentChange across every one of $qualifyingPairs
+     * that has data for that league — not every pair necessarily does, so
+     * each league's average is only over whichever pairs actually reached
+     * it, same as a single pair's own percentChange only averages over the
+     * leagues it has data for. Used for the leagueChanges breakdown in
+     * getBestInvestmentsForWindow's $useAveragePairs mode, so a league's
+     * breakdown figure and the headline percentChange agree with each
+     * other about what's being averaged.
+     */
+    private static function averageLeagueChangesAcrossPairs(array $qualifyingPairs): array
+    {
+        $changesByLeagueId = [];
+        $leagueById = [];
+
+        foreach ($qualifyingPairs as $pair) {
+            foreach ($pair['leagueChanges'] as $change) {
+                $leagueId = $change['league']['id'];
+                $changesByLeagueId[$leagueId][] = $change['percentChange'];
+                $leagueById[$leagueId] = $change['league'];
+            }
+        }
+
+        $result = [];
+        foreach ($changesByLeagueId as $leagueId => $changes) {
+            $result[] = ['league' => $leagueById[$leagueId], 'percentChange' => self::average($changes)];
+        }
+
+        return $result;
+    }
+
     /** Every league (from those given) that carries this exact item+pair, paired with that pair's history. */
     public static function getLeagueHistoriesForPair(array $leagues, string $itemId, string $pairId): array
     {
@@ -225,10 +256,12 @@ final class MarketData
      * across *every* qualifying pair it has (still each pair's own
      * volume/minVolume and positive-change requirements apply first; a pair
      * that doesn't clear those simply isn't part of the average, same as it
-     * wouldn't be a candidate for "best" otherwise). Either way, the chart/
-     * versus display still comes from the single best-performing pair — only
-     * the headline percentChange (and therefore ranking/top-N/positive-only
-     * filtering) changes between the two modes.
+     * wouldn't be a candidate for "best" otherwise). The per-league
+     * leagueChanges breakdown follows the same rule as the headline number —
+     * each league's own average across every qualifying pair, not just the
+     * best one — so the two stay consistent with each other; only the
+     * chart/versus display always comes from the single best-performing
+     * pair regardless of mode.
      */
     public static function getBestInvestmentsForWindow(
         array $leagues,
@@ -342,12 +375,15 @@ final class MarketData
             $percentChange = $useAveragePairs
                 ? self::average(array_map(fn(array $pair): float => $pair['percentChange'], $qualifyingPairs))
                 : $best['percentChange'];
+            $leagueChanges = $useAveragePairs
+                ? self::averageLeagueChangesAcrossPairs($qualifyingPairs)
+                : $best['leagueChanges'];
 
             $bestByItemId[$item['id']] = [
                 'item' => $item,
                 'pairId' => $best['pairId'],
                 'percentChange' => $percentChange,
-                'leagueChanges' => $best['leagueChanges'],
+                'leagueChanges' => $leagueChanges,
                 'leagueHistories' => $best['leagueHistories'],
             ];
         }

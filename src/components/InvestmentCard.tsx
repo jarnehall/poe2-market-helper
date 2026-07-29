@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import { useFilters } from "../context/FiltersContext";
 import { useMeta } from "../context/MetaContext";
 import { changeClass, formatPercentChange } from "../lib/format";
 import { getImageUrl, getPoeNinjaUrl } from "../lib/marketData";
@@ -24,6 +25,7 @@ function InvestmentCard({
   onToggleFavorite: (favorite: FavoriteItem) => void;
 }) {
   const { leagues } = useMeta();
+  const { filters } = useFilters();
   const leagueById = new Map(leagues.map((league) => [league.id, league]));
   const fallbackLeagueName = leagues[0]?.name ?? "";
 
@@ -147,8 +149,16 @@ function InvestmentCard({
           <Tooltip
             text={
               <span style={{ fontWeight: 300 }}>
-                Average change across all selected leagues for {investment.pairName}, from day{" "}
-                <span style={{ fontWeight: 700 }}>{windowStartDay}</span> to day{" "}
+                Average change across all selected leagues
+                {filters.useAveragePairs ? (
+                  " and pairs"
+                ) : (
+                  <>
+                    {" for "}
+                    <span style={{ fontWeight: 700 }}>{investment.pairName}</span>
+                  </>
+                )}
+                , from day <span style={{ fontWeight: 700 }}>{windowStartDay}</span> to day{" "}
                 <span style={{ fontWeight: 700 }}>{windowEndDay}</span>.
               </span>
             }
@@ -169,8 +179,16 @@ function InvestmentCard({
                         <span style={{ color: league?.color, fontWeight: 700 }}>
                           {league?.name ?? "This league"}
                         </span>
-                        's own change for {investment.pairName}, from day{" "}
-                        <span style={{ fontWeight: 700 }}>{windowStartDay}</span> to day{" "}
+                        's own{" "}
+                        {filters.useAveragePairs ? (
+                          "average change across all pairs"
+                        ) : (
+                          <>
+                            {"change for "}
+                            <span style={{ fontWeight: 700 }}>{investment.pairName}</span>
+                          </>
+                        )}
+                        , from day <span style={{ fontWeight: 700 }}>{windowStartDay}</span> to day{" "}
                         <span style={{ fontWeight: 700 }}>{windowEndDay}</span>.
                       </span>
                     }
