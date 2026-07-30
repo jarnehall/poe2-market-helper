@@ -160,7 +160,7 @@
 /* Same font-baseline nudge as .league-filter-badge-name — the pill's own
    text sits visually low against the dot/border otherwise. */
 .league-banner-started-text {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .league-banner-started-dot {
@@ -358,7 +358,7 @@
    centers by box height, not by glyph position, so this nudges the text up
    to actually look level with them. */
 .league-filter-badge-name {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .league-filter-current-tag {
