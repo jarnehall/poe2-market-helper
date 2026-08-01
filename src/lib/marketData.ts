@@ -6,21 +6,18 @@ export function getImageUrl(imagePath: string): string {
   return `${IMAGE_BASE_URL}${imagePath}`
 }
 
-// The Chaos Orb icon (the app's "Chaos Theory" namesake) shown in the
-// header and as the favicon for both games — purely decorative branding,
-// not tied to any particular league's data, so these are fixed paths
-// rather than looked up per-request. Each game's own path taken verbatim
-// from its real ingested data (data/poe1/mirage/currency.json and
-// data/poe2/rise-of-the-abyssal/currency.json's own core.items entries for
-// "chaos"), not guessed — poe.ninja's per-realm image hashes for the "same"
-// icon differ, so one game's asset can't just be copied for the other.
+// Each game's own icon, shown in the header and as the favicon — purely
+// decorative branding, not tied to any particular league's data. Served
+// straight from public/ (not poe.ninja's CDN, unlike every other image this
+// app shows), so these are root-relative paths rather than going through
+// getImageUrl.
 const HEADER_IMAGES: Record<Game, string> = {
-  poe2: '/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/c0ca392a78/CurrencyRerollRare.png',
-  poe1: '/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjF9XQ/46a2347805/CurrencyRerollRare.png',
+  poe1: '/poe1-icon.png',
+  poe2: '/poe2-icon.png',
 }
 
 export function getHeaderImage(game: Game): string {
-  return getImageUrl(HEADER_IMAGES[game])
+  return HEADER_IMAGES[game]
 }
 
 // poe.ninja's own URL slug for a category isn't always just its lowercased

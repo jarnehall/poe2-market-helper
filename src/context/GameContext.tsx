@@ -38,9 +38,8 @@ export function GameProvider({ game, children }: { game: Game; children: ReactNo
   }, [game])
 
   // The favicon always matches whichever game's header icon is showing
-  // (Chaos Orb for both, per their own per-realm asset — see
-  // HEADER_IMAGES in marketData.ts) rather than index.html's static
-  // /favicon.png default, which only ever shows for the instant before
+  // (see HEADER_IMAGES in marketData.ts) rather than index.html's static
+  // /poe2-icon.png default, which only ever shows for the instant before
   // this first runs.
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')

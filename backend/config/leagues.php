@@ -48,6 +48,5 @@ return [
         ['id' => 'curse-of-the-allflame', 'name' => 'Curse of the Allflame', 'color' => '#dac74d', 'folder' => null, 'poeNinjaLeague' => 'Allflame'],
         ['id' => 'mirage', 'name' => 'Mirage', 'color' => '#7c4dff', 'folder' => 'mirage', 'startDate' => '2026-03-06T19:00:00Z'],
         ['id' => 'keepers-of-the-flame', 'name' => 'Keepers of the Flame', 'color' => '#c0392b', 'folder' => 'keepers-of-the-flame', 'startDate' => '2025-10-31T19:00:00Z'],
-        ['id' => 'mercenaries', 'name' => 'Mercenaries', 'color' => '#b4359d', 'folder' => 'mercenaries', 'startDate' => '2025-06-13T20:00:00Z'],
     ],
 ];

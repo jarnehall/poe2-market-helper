@@ -68,6 +68,13 @@ function MarketOverview() {
   const [poeNinjaStatus, setPoeNinjaStatus] = useState<PoeNinjaStatus | null>(
     null,
   );
+  // False only when the selected day/league combination has no price data
+  // at all (e.g. a static league whose ingested snapshot doesn't reach this
+  // far back/forward) — lets the empty state explain that instead of
+  // reading like "nothing is profitable right now" when there's actually no
+  // data to judge at all. Defaults true so the very first render (before any
+  // response has landed) never shows the "no data" message prematurely.
+  const [hasDataInWindow, setHasDataInWindow] = useState(true);
 
   const [favoriteInvestments, setFavoriteInvestments] = useState<
     BestInvestmentEntry[]
@@ -124,6 +131,7 @@ function MarketOverview() {
         .then((response) => {
           setInvestments(response.investments);
           setPoeNinjaStatus(response.poeNinjaStatus);
+          setHasDataInWindow(response.hasDataInWindow ?? true);
           setStatus("success");
           setErrorMessage(null);
           setAppliedWindow({
@@ -553,7 +561,11 @@ function MarketOverview() {
               </>
             }
             caption={`Based on the rate change from day ${filters.currentDayOfLeague} to day ${filters.currentDayOfLeague + filters.daysForward}.`}
-            emptyMessage="No investment is good right now."
+            emptyMessage={
+              hasDataInWindow
+                ? "No investment is good right now."
+                : `No price data for day ${appliedWindow.currentDayOfLeague} to day ${appliedWindow.currentDayOfLeague + appliedWindow.daysForward} with the selected leagues. Try a different day or league selection.`
+            }
             investments={investments}
             isLoading={status === "loading"}
             skeletonCount={filters.investmentCount}

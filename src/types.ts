@@ -173,4 +173,11 @@ export interface PoeNinjaStatus {
 export interface BestInvestmentsResponse {
   investments: BestInvestment[]
   poeNinjaStatus: PoeNinjaStatus
+  // Only present on the best-investments response (not favorites, which
+  // always show pins regardless of data availability): false when the
+  // selected day/league combination has no price data at all — as opposed
+  // to having data but nothing qualifying as a good investment right now.
+  // Lets the empty state explain *why* nothing showed up instead of always
+  // reading like a market condition.
+  hasDataInWindow?: boolean
 }

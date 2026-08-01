@@ -422,6 +422,36 @@ final class MarketData
     }
 
     /**
+     * Whether *any* pair of *any* item across the given leagues has a
+     * non-null windowed percent change for this exact day/window — ignoring
+     * minVolume and sign entirely, unlike getRankedInvestments' own
+     * qualifying filter. Lets a caller tell "nothing is a good investment
+     * right now" (data exists, nothing qualifies) apart from "there's no
+     * data at all for this day/league selection" (e.g. a static league
+     * whose ingested snapshot doesn't reach this far back/forward) — the
+     * two need very different messaging, and getRankedInvestments' own
+     * empty result can't distinguish them on its own. Short-circuits on the
+     * first hit, so this stays cheap whenever data does exist (the common
+     * case); a full scan only happens on the genuinely-empty outcome this
+     * exists to detect.
+     */
+    public static function hasDataInWindow(array $leagues, int $currentDayOfLeague, int $daysForward): bool
+    {
+        foreach ($leagues as $league) {
+            foreach ($league['itemEntries'] as $entry) {
+                foreach ($entry['pairs'] as $pair) {
+                    $rows = self::getAllHistoryRows($pair['history'], $league['startDate'], $currentDayOfLeague);
+                    if (self::windowPercentChangeFromRows($rows, $currentDayOfLeague, $daysForward) !== null) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * The exact pinned/favorited items, resolved against the given leagues —
      * unlike getBestInvestmentsForWindow, every pin is included regardless of
      * volume, sign of change, or count: there's no threshold or top-N cutoff,

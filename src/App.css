@@ -88,25 +88,32 @@
 
 /* Below this, "Chaos Theory" alongside the icon and the
    Leagues/Filters/Settings/Reset row no longer comfortably fits on one
-   row (measured: started needing to scroll at 816px — re-measure again if
-   more header content gets added) — the title text is simply dropped
-   rather than abbreviated, since the icon alone (always kept, see
-   .app-header-inner's nowrap) is already enough to identify the app in a
-   slim header, and dropping the text means less of the controls row needs
-   to scroll to reach. */
-@media (max-width: 840px) {
+   row — the title text is simply dropped rather than abbreviated, since
+   the icon alone (always kept, see .app-header-inner's nowrap) is already
+   enough to identify the app in a slim header, and dropping the text means
+   less of the controls row needs to scroll to reach. */
+@media (max-width: 813px) {
   .app-header-title-full {
     display: none;
   }
 }
 
 /* Below this, the icon-only title alongside the button row (with the
-   Reset button's own label) starts needing to scroll further still
-   (measured: at 515px) — dropping "Reset all filters" to just its icon
-   (aria-label still carries the meaning for screen readers) keeps more of
-   the row in view before a scroll is needed. */
-@media (max-width: 540px) {
+   Reset button's own label) starts needing to scroll further still —
+   dropping "Reset all filters" to just its icon (aria-label still carries
+   the meaning for screen readers) keeps more of the row in view before a
+   scroll is needed. */
+@media (max-width: 660px) {
   .reset-filters-button-label {
+    display: none;
+  }
+}
+
+/* Below this, even the icon-only title no longer comfortably fits — dropped
+   entirely (icon included) rather than shrunk further, matching
+   .app-header-title-full's own "drop, don't abbreviate" approach above. */
+@media (max-width: 537px) {
+  .app-header-title {
     display: none;
   }
 }
@@ -114,6 +121,23 @@
 @media (max-width: 600px) {
   .app-header-inner {
     padding: 12px;
+  }
+}
+
+/* Below this, .app-header-inner's own horizontal padding is dropped in
+   favor of .app-header-controls scrolling edge-to-edge — the same 12px is
+   added to .app-header-controls instead (rather than just deleted) so its
+   content still starts with the same visual inset it always had, it's just
+   that inset now scrolls away with the row instead of staying fixed. */
+@media (max-width: 489px) {
+  .app-header-inner {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .app-header-controls {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }
 
@@ -257,7 +281,7 @@
    scale, and transition everywhere, so they read as one control set
    rather than a pile of similar-but-different buttons. min-height keeps
    them all the same height too — without it, a label-less pill (Reset
-   below 540px, icon only) sizes to its icon's own 13px instead of a text
+   below 660px, icon only) sizes to its icon's own 13px instead of a text
    label's line-height and renders a couple pixels shorter than its
    siblings. 29px is that text-label height (measured), not a guess. */
 .league-filter-toggle-button,

@@ -267,6 +267,21 @@ check(
     'useAveragePairs reports just the winning pair\'s own +100%, not an average dragged down by the losing pair\'s -50% (which was never a qualifying candidate)',
 );
 
+// --- MarketData::hasDataInWindow distinguishes "no data at all for this ---
+// --- day/window" from "data exists but nothing qualifies" — the latter is
+// what getRankedInvestments' own empty result normally means, but a static
+// league whose snapshot simply doesn't reach the requested day (the real
+// "Mercenaries" bug report this exists for) looks identical from the
+// response alone without this separate check.
+check(
+    MarketData::hasDataInWindow([$league], currentDayOfLeague: 3, daysForward: 2) === true,
+    'hasDataInWindow is true for a window the fixture actually has rows in, regardless of minVolume/sign',
+);
+check(
+    MarketData::hasDataInWindow([$league], currentDayOfLeague: 50, daysForward: 2) === false,
+    'hasDataInWindow is false for a day far outside every pair\'s history (the "selected a day the static league snapshot doesn\'t cover" case)',
+);
+
 // useAveragePairs' leagueChanges breakdown must average across pairs
 // per-league too (not just carry over the best pair's own breakdown) — two
 // leagues where the pairs' coverage differs, so a naive "reuse the best
@@ -459,7 +474,7 @@ $poe1Repo = new LeagueRepository($repoDataDir . '/poe1', $allLeagueConfigs['poe1
 $poe2Repo = new LeagueRepository($repoDataDir . '/poe2', $allLeagueConfigs['poe2']);
 
 check(
-    $poe1Repo->leagueIds() === ['curse-of-the-allflame', 'mirage', 'keepers-of-the-flame', 'mercenaries'],
+    $poe1Repo->leagueIds() === ['curse-of-the-allflame', 'mirage', 'keepers-of-the-flame'],
     'a POE1-scoped repository only ever sees POE1\'s own league ids',
 );
 check(

@@ -110,6 +110,15 @@ final class BestInvestmentsController
                 $resolved['investments'],
             ),
             'poeNinjaStatus' => $resolved['poeNinjaStatus'],
+            // Lets the frontend tell "nothing qualifies right now" apart
+            // from "there's no data at all for this day/league selection"
+            // (e.g. a static league whose snapshot doesn't reach this far
+            // back/forward) — the two need different empty-state messaging.
+            // Only meaningful (and only worth computing) when the response
+            // is actually empty; true is otherwise the safe default so a
+            // non-empty response never claims there's no data.
+            'hasDataInWindow' => $resolved['investments'] !== []
+                || MarketData::hasDataInWindow($leagues, $currentDayOfLeague, $daysForward),
         ]);
     }
 }
