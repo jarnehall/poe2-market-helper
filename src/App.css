@@ -86,32 +86,32 @@
   flex-shrink: 0;
 }
 
-/* Below this, "Chaos Theory" alongside the icon and the
-   Leagues/Filters/Settings/Reset row no longer comfortably fits on one
-   row — the title text is simply dropped rather than abbreviated, since
-   the icon alone (always kept, see .app-header-inner's nowrap) is already
-   enough to identify the app in a slim header, and dropping the text means
-   less of the controls row needs to scroll to reach. */
+/* Below this (measured directly via boundingClientRect, not derived from a
+   rounded guess — same for every other threshold in this file), "Chaos
+   Theory" alongside the icon and the full Leagues/Filters/Settings/Reset
+   row no longer comfortably fits on one row. The Reset button's own label
+   is dropped first, not the title — aria-label still carries its meaning
+   for screen readers, and losing "all filters" reads as far less of a loss
+   than losing the app's own name does. */
 @media (max-width: 813px) {
-  .app-header-title-full {
-    display: none;
-  }
-}
-
-/* Below this, the icon-only title alongside the button row (with the
-   Reset button's own label) starts needing to scroll further still —
-   dropping "Reset all filters" to just its icon (aria-label still carries
-   the meaning for screen readers) keeps more of the row in view before a
-   scroll is needed. */
-@media (max-width: 660px) {
   .reset-filters-button-label {
     display: none;
   }
 }
 
+/* Below this, the full title alongside the button row (Reset now icon-only)
+   starts needing to scroll further still — dropping "Chaos Theory" down to
+   just its icon (still enough to identify the app in a slim header) keeps
+   more of the row in view before a scroll is needed. */
+@media (max-width: 714px) {
+  .app-header-title-full {
+    display: none;
+  }
+}
+
 /* Below this, even the icon-only title no longer comfortably fits — dropped
-   entirely (icon included) rather than shrunk further, matching
-   .app-header-title-full's own "drop, don't abbreviate" approach above. */
+   entirely rather than shrunk further, matching .app-header-title-full's
+   own "drop, don't abbreviate" approach above. */
 @media (max-width: 537px) {
   .app-header-title {
     display: none;
@@ -124,20 +124,50 @@
   }
 }
 
-/* Below this, .app-header-inner's own horizontal padding is dropped in
-   favor of .app-header-controls scrolling edge-to-edge — the same 12px is
-   added to .app-header-controls instead (rather than just deleted) so its
-   content still starts with the same visual inset it always had, it's just
-   that inset now scrolls away with the row instead of staying fixed. */
+/* Below this, the title is already gone entirely (see the 537px rule
+   above), and .app-header-controls' own Leagues/Filters/Settings/Reset
+   pills no longer fit even on their own — this is where it actually starts
+   scrolling horizontally, not just wherever the title's own hiding
+   happened to stop being enough. */
 @media (max-width: 489px) {
   .app-header-inner {
     padding-left: 0;
     padding-right: 0;
+    /* Moved onto .app-header-controls instead (as its own padding-bottom)
+       — see that rule for why. */
+    padding-bottom: 0;
   }
 
   .app-header-controls {
     padding-left: 12px;
     padding-right: 12px;
+    /* .app-header-inner's own bottom padding is zeroed above and moved
+       here instead: a scrolling element's native scrollbar renders flush
+       against the *bottom of its own box*, so as long as this padding
+       lived on .app-header-inner, the scrollbar (sitting flush inside
+       .app-header-controls' shorter box) landed well above it, with the
+       padding forming empty space *below* the scrollbar instead of above
+       it. Giving that same padding to .app-header-controls directly gives
+       the scrollbar somewhere to actually land in, right at the pills'
+       own bottom edge, instead of past it. align-items: flex-start keeps
+       the pills pinned to the top of the taller box this creates, rather
+       than centered with the scrollbar cutting across their middle. */
+    padding-bottom: 12px;
+    align-items: flex-start;
+    scrollbar-width: thin;
+  }
+
+  .app-header-controls::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .app-header-controls::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .app-header-controls::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
   }
 }
 
@@ -161,7 +191,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 8px 16px;
   margin-top: 1.25em;
 }
 

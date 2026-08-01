@@ -35,7 +35,7 @@ import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const USER_AGENT = "poe2-market-guide/1.0 (personal project; +https://poe2.jarnehall.se/)";
+const USER_AGENT = "poe2-market-guide/1.0 (personal project; +https://chaostheory.jarnehall.se/)";
 const CONCURRENCY = 6;
 
 const GAME_CONFIG = {

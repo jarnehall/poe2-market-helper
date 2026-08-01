@@ -26,7 +26,7 @@ namespace App\DataAccess;
  */
 final class PoeNinjaClient
 {
-    private const USER_AGENT = 'poe2-market-guide/1.0 (personal project; +https://poe2.jarnehall.se/)';
+    private const USER_AGENT = 'poe2-market-guide/1.0 (personal project; +https://chaostheory.jarnehall.se/)';
     private const TIMEOUT_SECONDS = 10;
     private const CACHE_TTL_SECONDS = 2 * 60 * 60;
 
