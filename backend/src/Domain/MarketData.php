@@ -489,6 +489,12 @@ final class MarketData
             $results[] = [
                 'item' => $item,
                 'pairId' => $pin['pairId'],
+                // The exact pairId the pin was requested with, kept
+                // alongside 'pairId' (which augmentWithLiveLeague can later
+                // overwrite via pair promotion) so callers can still match
+                // this result back to the pin that produced it even after
+                // promotion changes which pair is actually shown.
+                'pinPairId' => $pin['pairId'],
                 'percentChange' => self::average(array_map(fn(array $c): float => $c['percentChange'], $leagueChanges)),
                 'leagueChanges' => $leagueChanges,
                 'leagueHistories' => $leagueHistories,

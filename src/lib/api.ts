@@ -1,7 +1,7 @@
 import type { BestInvestmentsResponse, CatalogItem, CurrentLeaguesByGame, FavoriteItem, Game, Meta } from '../types'
 
-async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init)
   const body: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
@@ -16,7 +16,7 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 export function fetchMeta(game: Game, signal?: AbortSignal): Promise<Meta> {
-  return fetchJson<Meta>(`/api/meta?game=${game}`, signal)
+  return fetchJson<Meta>(`/api/meta?game=${game}`, { signal })
 }
 
 export interface BestInvestmentsParams {
@@ -49,7 +49,7 @@ export function fetchBestInvestments(
     useAveragePairs: String(params.useAveragePairs),
   })
 
-  return fetchJson<BestInvestmentsResponse>(`/api/best-investments?${query.toString()}`, signal)
+  return fetchJson<BestInvestmentsResponse>(`/api/best-investments?${query.toString()}`, { signal })
 }
 
 export interface FavoritesParams {
@@ -74,15 +74,27 @@ export function fetchFavorites(
     pins: JSON.stringify(params.favorites),
   })
 
-  return fetchJson<BestInvestmentsResponse>(`/api/favorites?${query.toString()}`, signal)
+  return fetchJson<BestInvestmentsResponse>(`/api/favorites?${query.toString()}`, { signal })
 }
 
 export function fetchItemsCatalog(game: Game, signal?: AbortSignal): Promise<{ items: CatalogItem[] }> {
-  return fetchJson<{ items: CatalogItem[] }>(`/api/items?game=${game}`, signal)
+  return fetchJson<{ items: CatalogItem[] }>(`/api/items?game=${game}`, { signal })
 }
 
 // Not game-scoped, unlike everything above — used only to decide which
 // game's route "/" should redirect to (see App.tsx).
 export function fetchCurrentLeagues(signal?: AbortSignal): Promise<CurrentLeaguesByGame> {
-  return fetchJson<CurrentLeaguesByGame>('/api/current-leagues', signal)
+  return fetchJson<CurrentLeaguesByGame>('/api/current-leagues', { signal })
+}
+
+// Not game-scoped either — clears every game's poe.ninja cache at once (see
+// PoeNinjaCacheController). The password is just a confirmation gate against
+// clicking the Settings button by accident, not real auth — see its own
+// backend-side comment.
+export function resetPoeNinjaCache(password: string): Promise<{ cleared: string[] }> {
+  return fetchJson<{ cleared: string[] }>('/api/reset-poe-ninja-cache', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
 }

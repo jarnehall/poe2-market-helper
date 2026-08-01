@@ -471,6 +471,26 @@
   color: var(--loss);
 }
 
+/* A rarely-used admin nicety (see MarketOverview.tsx), not a primary
+   control — kept visually quiet (plain text until hovered) rather than a
+   full pill button like the controls above it. */
+.poe-ninja-cache-reset-button {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.poe-ninja-cache-reset-button:hover {
+  color: var(--text-h);
+}
+
 .average-pairs-toggle {
   display: flex;
   align-items: center;

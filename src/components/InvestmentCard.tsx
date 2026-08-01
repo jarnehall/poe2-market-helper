@@ -69,15 +69,23 @@ function InvestmentCard({
   const windowStartDay = currentDayOfLeague;
   const windowEndDay = currentDayOfLeague + daysForward;
 
+  // For a pinned favorite, the pin's identity is `pinPairId` (the pairId it
+  // was actually pinned under), not `pairId` — the backend can promote the
+  // latter to a different pair that has current-league data (see
+  // augmentWithLiveLeague) without that becoming a different favorite. A
+  // best-investments card never has `pinPairId`, so this falls back to its
+  // own current `pairId`, unchanged from before.
+  const favoritePairId = investment.pinPairId ?? investment.pairId;
+
   return (
     <li className="best-investment-card">
       <FavoriteStar
-        isFavorite={isFavorite(investment.item.id, investment.pairId)}
+        isFavorite={isFavorite(investment.item.id, favoritePairId)}
         onToggle={() =>
           onToggleFavorite({
             category: investment.item.category,
             itemId: investment.item.id,
-            pairId: investment.pairId,
+            pairId: favoritePairId,
           })
         }
         itemName={investment.item.name}

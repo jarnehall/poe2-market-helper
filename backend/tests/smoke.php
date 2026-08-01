@@ -522,6 +522,9 @@ $payloadBuilder = new InvestmentPayloadBuilder($payloadClient, [
     'startDate' => '2026-01-01T00:00:00Z',
 ]);
 
+// pairs is normally attached by attachAlternatePairs() before this runs
+// (see resolveRankedInvestments/FavoritesController) — supplied by hand
+// here since these fixtures skip straight to augmentWithLiveLeague.
 $investmentWithLiveData = [
     'item' => ['id' => 'chaos', 'name' => 'Chaos Orb', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'chaos-orb'],
     'pairId' => 'divine',
@@ -530,6 +533,7 @@ $investmentWithLiveData = [
     'percentChange' => 10.0,
     'leagueChanges' => [],
     'leagueHistories' => [],
+    'pairs' => [['pairId' => 'divine', 'percentChange' => 10.0, 'leagueHistories' => []]],
 ];
 $investmentWithNoLiveData = [
     'item' => ['id' => 'no-data', 'name' => 'No Data Orb', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'no-data-orb'],
@@ -539,11 +543,14 @@ $investmentWithNoLiveData = [
     'percentChange' => 5.0,
     'leagueChanges' => [],
     'leagueHistories' => [],
+    'pairs' => [['pairId' => 'divine', 'percentChange' => 5.0, 'leagueHistories' => []]],
 ];
 
 $augmented = $payloadBuilder->augmentWithLiveLeague(
     [$investmentWithLiveData, $investmentWithNoLiveData],
     ['live-league'],
+    2,
+    1,
 );
 
 check(
@@ -561,6 +568,155 @@ check(
 );
 
 @unlink($payloadCacheFile);
+
+// --- augmentWithLiveLeague promotes an alternate pair when the ranked one ---
+// --- has no *real* live-league data, rather than dropping the card, and ---
+// --- drops entirely only when no pair at all has real data. poe.ninja ---
+// returns a zero-volume placeholder row (rate: 1, volumePrimaryValue: 0) for
+// a pair with no real trades yet rather than omitting it — that's what
+// distinguishes "no real data" from "no data" here.
+
+$placeholderRow = ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 1, 'volumePrimaryValue' => 0];
+$realRow = ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 50, 'volumePrimaryValue' => 20];
+
+$promoEntry = json_decode(json_encode([
+    'item' => ['id' => 'promo', 'name' => 'Promo Item', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'promo-details'],
+    'pairs' => [
+        ['id' => 'divine', 'rate' => 1, 'volumePrimaryValue' => 0, 'history' => [$placeholderRow]],
+        ['id' => 'chaos', 'rate' => 50, 'volumePrimaryValue' => 20, 'history' => [$realRow]],
+    ],
+    'core' => ['items' => [], 'rates' => [], 'primary' => 'chaos', 'secondary' => 'divine'],
+]), true);
+
+$placeholderOnlyEntry = json_decode(json_encode([
+    'item' => ['id' => 'stale', 'name' => 'Stale Item', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'stale-details'],
+    'pairs' => [
+        ['id' => 'divine', 'rate' => 1, 'volumePrimaryValue' => 0, 'history' => [$placeholderRow]],
+    ],
+    'core' => ['items' => [], 'rates' => [], 'primary' => 'chaos', 'secondary' => 'divine'],
+]), true);
+
+$promoCacheFile = sys_get_temp_dir() . '/poe2-market-guide-smoke-promo-cache-' . uniqid() . '.json';
+file_put_contents($promoCacheFile, json_encode([
+    'promo-details' => ['fetchedAt' => time(), 'entry' => $promoEntry],
+    'stale-details' => ['fetchedAt' => time(), 'entry' => $placeholderOnlyEntry],
+]));
+
+$promoClient = new PoeNinjaClient('Does Not Matter — served from cache', $promoCacheFile, 'https://example.invalid/details', []);
+$promoBuilder = new InvestmentPayloadBuilder($promoClient, [
+    'id' => 'live-league',
+    'name' => 'Live League',
+    'startDate' => '2026-01-01T00:00:00Z',
+]);
+
+$staticLeague = ['id' => 'static-league', 'startDate' => '2026-01-01T00:00:00Z'];
+
+$promoInvestment = [
+    'item' => ['id' => 'promo', 'name' => 'Promo Item', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'promo-details'],
+    // Ranked on divine (the pair with no real live data), same as the real
+    // "Allflame Ember of Flesh" case this whole thing was written for.
+    'pairId' => 'divine',
+    'pairName' => 'Divine Orb',
+    'pairImage' => null,
+    'percentChange' => 999.0,
+    'leagueChanges' => [['league' => $staticLeague, 'percentChange' => 999.0]],
+    'leagueHistories' => [['league' => $staticLeague, 'history' => [$placeholderRow]]],
+    'pairs' => [
+        ['pairId' => 'divine', 'percentChange' => 999.0, 'leagueHistories' => [['league' => $staticLeague, 'history' => [$placeholderRow]]]],
+        ['pairId' => 'chaos', 'percentChange' => 42.0, 'leagueHistories' => [['league' => $staticLeague, 'history' => [$realRow]]]],
+    ],
+];
+
+$staleInvestment = [
+    'item' => ['id' => 'stale', 'name' => 'Stale Item', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'stale-details'],
+    'pairId' => 'divine',
+    'pairName' => 'Divine Orb',
+    'pairImage' => null,
+    'percentChange' => 1.0,
+    'leagueChanges' => [],
+    'leagueHistories' => [],
+    'pairs' => [
+        ['pairId' => 'divine', 'percentChange' => 1.0, 'leagueHistories' => [['league' => $staticLeague, 'history' => [$placeholderRow]]]],
+    ],
+];
+
+$promoted = $promoBuilder->augmentWithLiveLeague([$promoInvestment, $staleInvestment], ['live-league'], 2, 1);
+
+check(
+    count($promoted) === 1 && $promoted[0]['item']['id'] === 'promo',
+    'the item ranked on a pair with no real live data survives (promoted), while the item where no pair has real live data is dropped',
+);
+check(
+    ($promoted[0]['pairId'] ?? null) === 'chaos',
+    'the ranked pair is swapped to the best alternate that actually has real live-league data',
+);
+check(
+    ($promoted[0]['percentChange'] ?? null) === 42.0,
+    'percentChange is updated to the promoted pair\'s own value, not left as the old (divine) ranked pair\'s',
+);
+check(
+    count($promoted[0]['pairs'] ?? []) === 1 && $promoted[0]['pairs'][0]['pairId'] === 'chaos',
+    'the pair-switcher list itself drops the no-real-data pair (divine) too, not just the main display',
+);
+
+@unlink($promoCacheFile);
+
+// --- augmentWithLiveLeague also promotes when the ranked pair's own real ---
+// --- trade data has gone stale relative to a sibling pair, not just when ---
+// --- it's a bare zero-volume placeholder. Reproduces the real "Clear Oil" ---
+// bug report: the ranked pair (divine) genuinely traded a couple of days ago
+// (a non-zero-volume row, so the old hasRealTradeData("any real row ever")
+// check wrongly kept it), but chaos has since traded *today* while divine
+// hasn't — divine's own latest row lags behind the item's freshest
+// available date, so it must be treated the same as having no current data.
+
+$yesterdayRealRow = ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 40, 'volumePrimaryValue' => 15];
+$todayRealRow = ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 50, 'volumePrimaryValue' => 20];
+
+$staleRankedEntry = json_decode(json_encode([
+    'item' => ['id' => 'oil', 'name' => 'Clear Oil', 'image' => '/x.png', 'category' => 'Oils', 'detailsId' => 'clear-oil'],
+    'pairs' => [
+        // divine really did trade — just not as recently as chaos.
+        ['id' => 'divine', 'rate' => 40, 'volumePrimaryValue' => 15, 'history' => [$yesterdayRealRow]],
+        ['id' => 'chaos', 'rate' => 50, 'volumePrimaryValue' => 20, 'history' => [$todayRealRow]],
+    ],
+    'core' => ['items' => [], 'rates' => [], 'primary' => 'chaos', 'secondary' => 'divine'],
+]), true);
+
+$staleRankedCacheFile = sys_get_temp_dir() . '/poe2-market-guide-smoke-stale-ranked-cache-' . uniqid() . '.json';
+file_put_contents($staleRankedCacheFile, json_encode([
+    'clear-oil' => ['fetchedAt' => time(), 'entry' => $staleRankedEntry],
+]));
+
+$staleRankedClient = new PoeNinjaClient('Does Not Matter — served from cache', $staleRankedCacheFile, 'https://example.invalid/details', []);
+$staleRankedBuilder = new InvestmentPayloadBuilder($staleRankedClient, [
+    'id' => 'live-league',
+    'name' => 'Live League',
+    'startDate' => '2026-01-01T00:00:00Z',
+]);
+
+$staleRankedInvestment = [
+    'item' => ['id' => 'oil', 'name' => 'Clear Oil', 'image' => '/x.png', 'category' => 'Oils', 'detailsId' => 'clear-oil'],
+    'pairId' => 'divine',
+    'pairName' => 'Divine Orb',
+    'pairImage' => null,
+    'percentChange' => 999.0,
+    'leagueChanges' => [['league' => $staticLeague, 'percentChange' => 999.0]],
+    'leagueHistories' => [['league' => $staticLeague, 'history' => [$yesterdayRealRow]]],
+    'pairs' => [
+        ['pairId' => 'divine', 'percentChange' => 999.0, 'leagueHistories' => [['league' => $staticLeague, 'history' => [$yesterdayRealRow]]]],
+        ['pairId' => 'chaos', 'percentChange' => 42.0, 'leagueHistories' => [['league' => $staticLeague, 'history' => [$todayRealRow]]]],
+    ],
+];
+
+$staleRankedPromoted = $staleRankedBuilder->augmentWithLiveLeague([$staleRankedInvestment], ['live-league'], 2, 1);
+
+check(
+    count($staleRankedPromoted) === 1 && ($staleRankedPromoted[0]['pairId'] ?? null) === 'chaos',
+    'a ranked pair whose own latest real trade lags behind a sibling pair\'s (real, but not current) is promoted away, not kept just because it once had real volume',
+);
+
+@unlink($staleRankedCacheFile);
 
 // --- InvestmentPayloadBuilder::resolveRankedInvestments backfills past ---
 // --- dropped items so the response still has $count investments (as long ---
@@ -586,7 +742,14 @@ function smokeFakeLiveEntry(string $detailsId): array
 {
     return json_decode(json_encode([
         'item' => ['id' => $detailsId, 'name' => $detailsId, 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => $detailsId],
-        'pairs' => [['id' => 'divine', 'rate' => 1, 'volumePrimaryValue' => 1, 'history' => []]],
+        // A non-empty history with a real (non-zero) volume — not just the
+        // pair's own top-level rate/volumePrimaryValue — since
+        // hasRealTradeData() (augmentWithLiveLeague) checks the history
+        // rows themselves, matching what a genuine poe.ninja response
+        // always pairs a non-placeholder rate/volume with.
+        'pairs' => [['id' => 'divine', 'rate' => 1, 'volumePrimaryValue' => 1, 'history' => [
+            ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 1, 'volumePrimaryValue' => 1],
+        ]]],
         'core' => ['items' => [], 'rates' => [], 'primary' => 'chaos', 'secondary' => 'divine'],
     ]), true);
 }
@@ -656,6 +819,133 @@ check(
 );
 
 @unlink($backfillCacheFile);
+
+// --- resolveRankedInvestments drops (and backfills past) an investment ---
+// --- whose *promoted* pair turns out to be a loss, and re-sorts the final ---
+// --- list by each survivor's actual (possibly promoted) percentChange ---
+// --- rather than trusting $rankedPool's original (pre-promotion) order. ---
+// Reproduces the real "Allflame Ember of Flesh" bug report: an item ranked
+// #1 on its divine pair (no live data) must not surface as a "best
+// investment" once promoted to a pair (chaos) that's actually a loss.
+
+$sortCacheFile = sys_get_temp_dir() . '/poe2-market-guide-smoke-sort-cache-' . uniqid() . '.json';
+
+// Live-league entry with a real (non-placeholder) trade on 'chaos' but not
+// 'divine' — the ranked pair ('divine') always promotes to 'chaos' here.
+// The *sign* of the resulting percentChange comes from $sortLeague's own
+// static history below (attachAlternatePairs/getAllPairsForItem), not from
+// this live entry — see augmentWithLiveLeague's promotion branch, which
+// carries over the alternate pair's already-computed static percentChange
+// rather than deriving a new one from the live data.
+function smokePromotableLiveEntry(string $detailsId): array
+{
+    return json_decode(json_encode([
+        'item' => ['id' => $detailsId, 'name' => $detailsId, 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => $detailsId],
+        'pairs' => [
+            ['id' => 'divine', 'rate' => 1, 'volumePrimaryValue' => 0, 'history' => [
+                ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 1, 'volumePrimaryValue' => 0],
+            ]],
+            ['id' => 'chaos', 'rate' => 1, 'volumePrimaryValue' => 20, 'history' => [
+                ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 1, 'volumePrimaryValue' => 20],
+            ]],
+        ],
+        'core' => ['items' => [], 'rates' => [], 'primary' => 'chaos', 'secondary' => 'divine'],
+    ]), true);
+}
+
+file_put_contents($sortCacheFile, json_encode([
+    // itemLoss: ranked #1 (999%) on divine, but its only real-data pair
+    // (chaos) is actually a loss once promoted.
+    'itemLoss-details' => ['fetchedAt' => time(), 'entry' => smokePromotableLiveEntry('itemLoss-details')],
+    // itemLowPromo: ranked #2 (500%) on divine, promotes to chaos at a real
+    // (positive) but modest gain — lower than the other survivors' own
+    // static percentChange, so a correct re-sort must push it to last.
+    'itemLowPromo-details' => ['fetchedAt' => time(), 'entry' => smokePromotableLiveEntry('itemLowPromo-details')],
+    // item3/item4 (reused fixture ids from the backfill test above): real
+    // live data straight on their own ranked pair, untouched by promotion.
+    'item3-details' => ['fetchedAt' => time(), 'entry' => smokeFakeLiveEntry('item3-details')],
+    'item4-details' => ['fetchedAt' => time(), 'entry' => smokeFakeLiveEntry('item4-details')],
+]));
+
+$sortClient = new PoeNinjaClient('Does Not Matter — served from cache', $sortCacheFile, 'https://example.invalid/details', []);
+$sortBuilder = new InvestmentPayloadBuilder($sortClient, [
+    'id' => 'live-league',
+    'name' => 'Live League',
+    'startDate' => '2026-01-01T00:00:00Z',
+]);
+
+// Static league feeding attachAlternatePairs/getAllPairsForItem: itemLoss's
+// chaos pair falls (day1 rate 10 -> day5 rate 8, a real loss); itemLowPromo's
+// chaos pair rises only slightly (day1 rate 10 -> day5 rate 11).
+$sortLeague = [
+    'id' => 'sort-static-league',
+    'name' => 'Sort Static League',
+    'color' => '#000000',
+    'startDate' => $leagueStart,
+    'itemEntries' => [
+        [
+            'item' => ['id' => 'itemLoss', 'name' => 'itemLoss', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'itemLoss-details'],
+            'pairs' => [[
+                'id' => 'chaos',
+                'rate' => 80.0,
+                'volumePrimaryValue' => 100,
+                // day3 (currentDayOfLeague, the window start) rate 100 ->
+                // day5 (window end) rate 80: a real -20% loss.
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 80.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
+                ],
+            ]],
+        ],
+        [
+            'item' => ['id' => 'itemLowPromo', 'name' => 'itemLowPromo', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'itemLowPromo-details'],
+            'pairs' => [[
+                'id' => 'chaos',
+                'rate' => 105.0,
+                'volumePrimaryValue' => 100,
+                // day3 (currentDayOfLeague, the window start) rate 100 ->
+                // day5 (window end) rate 105: a real but modest +5% gain —
+                // lower than item3's 20% and item4's 10%, so a correct
+                // re-sort must push this to last despite outranking both
+                // pre-promotion.
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 105.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
+                ],
+            ]],
+        ],
+    ],
+];
+
+$sortPool = [
+    smokeFixtureInvestment('itemLoss', 999.0),
+    smokeFixtureInvestment('itemLowPromo', 500.0),
+    smokeFixtureInvestment('item3', 20.0),
+    smokeFixtureInvestment('item4', 10.0),
+];
+
+$sortResolved = $sortBuilder->resolveRankedInvestments($sortPool, 3, [$sortLeague], ['live-league'], 3, 2);
+
+check(
+    !in_array('itemLoss', array_map(fn(array $inv): string => $inv['item']['id'], $sortResolved['investments']), true),
+    'an item promoted to a losing pair is dropped from best investments, not shown despite a negative percentChange',
+);
+check(
+    count($sortResolved['investments']) === 3,
+    'the dropped item is backfilled from the rest of the pool so the requested count is still met',
+);
+$sortedIds = array_map(fn(array $inv): string => $inv['item']['id'], $sortResolved['investments']);
+$sortedChanges = array_map(fn(array $inv): float => $inv['percentChange'], $sortResolved['investments']);
+check(
+    $sortedChanges[0] >= $sortedChanges[1] && $sortedChanges[1] >= $sortedChanges[2],
+    'survivors are re-sorted by their actual (possibly promoted) percentChange, not left in the pool\'s original pre-promotion order',
+);
+check(
+    end($sortedIds) === 'itemLowPromo',
+    'itemLowPromo (ranked #2 pre-promotion, but only a small real gain once promoted) correctly drops to last after re-sorting',
+);
+
+@unlink($sortCacheFile);
 
 if ($failures > 0) {
     fwrite(STDERR, "\n{$failures} check(s) failed.\n");

@@ -83,7 +83,7 @@ final class FavoritesController
         // Kept around (pre-drop) so poeNinjaStatus() below can still look up
         // a dropped item's own name/id for its failedItems detail list.
         $preDropInvestments = $investments;
-        $investments = $this->payloadBuilder->augmentWithLiveLeague($investments, $leagueIds);
+        $investments = $this->payloadBuilder->augmentWithLiveLeague($investments, $leagueIds, $currentDayOfLeague, $daysForward);
 
         JsonResponse::send([
             'investments' => array_map(

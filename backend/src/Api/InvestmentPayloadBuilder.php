@@ -63,23 +63,36 @@ final class InvestmentPayloadBuilder
      * ranking/pin-resolution itself — its data isn't in $leagues at all,
      * since it has no static data/ folder (see LeagueRepository). Instead,
      * for whichever items were already resolved, this fetches (or reads from
-     * cache) that same item+pair's live data from poe.ninja and appends it as
+     * cache) that same item's live data from poe.ninja and appends each pair
      * an extra leagueHistories entry, purely for display as an overlay line
      * on the chart. Deliberately NOT added to leagueChanges (the per-league
      * percent-change breakdown shown next to the card's main number) — the
      * live league was never actually selected, so its own "growth" isn't a
-     * meaningful data point there, only the leagues the user picked are.
+     * meaningful data point there, only the leagues the user picked are
+     * (except for a promoted pair — see below — which needs its own
+     * breakdown recomputed from scratch anyway).
      *
-     * An item poe.ninja has no live-league data for at all (a genuine "not
-     * traded yet", or a fetch failure — see PoeNinjaClient, both come back
-     * as a null entry here) is dropped from the result entirely, rather than
-     * shown with the live league's overlay silently missing: the live league
-     * was explicitly selected, so a card that can't show it isn't a useful
-     * answer to what was asked for. This applies to a pinned favorite too,
-     * not just ranked cards — same shared method, same rule either way.
+     * A pair with no *meaningful* live-league data (poe.ninja has nothing
+     * for it at all, or nothing but zero-volume placeholder rows — it
+     * returns a row like rate: 1, volumePrimaryValue: 0 for a pair with no
+     * real trades yet, rather than omitting it) is dropped from $pairs
+     * entirely: the live league was explicitly selected, so offering a
+     * pair-switcher option that can't show it isn't useful. If that
+     * happens to be the ranked/pinned pair itself, the best remaining pair
+     * that *does* have real live data is promoted to take its place
+     * (recomputing percentChange/leagueChanges for it, since an alternate
+     * pair doesn't carry those — see attachAlternatePairs) rather than
+     * dropping the whole card over one pair's gap. Only when *no* pair has
+     * real live data does the item get dropped entirely. Applies to a
+     * pinned favorite too, not just ranked cards — same shared method,
+     * same rule either way.
      */
-    public function augmentWithLiveLeague(array $investments, array $leagueIds): array
-    {
+    public function augmentWithLiveLeague(
+        array $investments,
+        array $leagueIds,
+        int $currentDayOfLeague,
+        int $daysForward,
+    ): array {
         $liveLeagueId = $this->currentLeagueInfo['id'] ?? null;
         if ($liveLeagueId === null || $investments === [] || !in_array($liveLeagueId, $leagueIds, true)) {
             return $investments;
@@ -98,6 +111,7 @@ final class InvestmentPayloadBuilder
             $investments,
         );
         $liveEntries = $this->poeNinjaClient->getEntries($neededItems);
+        $liveLeagueStub = ['id' => $liveLeagueId, 'startDate' => $this->currentLeagueInfo['startDate']];
 
         // Rebuilt into a fresh, re-indexed array (rather than unset()-ing in
         // place) so a dropped item can never leave a gap in the numeric keys
@@ -112,36 +126,135 @@ final class InvestmentPayloadBuilder
                 continue;
             }
 
-            $liveLeagueStub = ['id' => $liveLeagueId, 'startDate' => $this->currentLeagueInfo['startDate']];
+            // How recent a pair's own latest real trade needs to be to still
+            // count as "has real live data" — the freshest date poe.ninja
+            // reported *any* real trade on, across every pair of this item.
+            // A pair whose own latest real row falls short of that (e.g. it
+            // last traded yesterday while a sibling pair traded today) is
+            // treated the same as having no real data at all: keeping it as
+            // the ranked/pinned pair would silently show stale data next to
+            // a "current league" label, even though it did have real trades
+            // once. Comparing against the whole item's own freshest date —
+            // not literally "today" — avoids false negatives right after
+            // league launch or during a lull when poe.ninja hasn't posted
+            // *any* pair's latest day yet.
+            $asOfTimestamp = self::latestHistoryTimestamp($liveEntry['pairs']);
 
-            $livePair = self::findPairById($liveEntry['pairs'], $investment['pairId']);
-            if ($livePair !== null) {
-                $investment['leagueHistories'][] = ['league' => $liveLeagueStub, 'history' => $livePair['history']];
+            // The ranked/pinned pair is checked directly against $liveEntry
+            // (not just via $investment['pairs']) — attachAlternatePairs can
+            // legitimately come back empty (e.g. the item isn't in any of
+            // the selected static leagues, only pinned) while the ranked
+            // pair itself still has perfectly good live data, and that must
+            // not be misread as "nothing has real data".
+            $mainLivePair = self::findPairById($liveEntry['pairs'], $investment['pairId']);
+            $mainHasRealData = $mainLivePair !== null && self::hasRealTradeData($mainLivePair['history'], $asOfTimestamp);
+
+            // Only pairs with real live-league data are worth offering via
+            // the switcher once the live league is selected — poe.ninja
+            // still returns a pair with just a zero-volume placeholder row
+            // for one with no real trades yet, rather than omitting it.
+            $pairsWithLiveData = [];
+            foreach ($investment['pairs'] ?? [] as $pair) {
+                $livePair = self::findPairById($liveEntry['pairs'], $pair['pairId']);
+                if ($livePair === null || !self::hasRealTradeData($livePair['history'], $asOfTimestamp)) {
+                    continue;
+                }
+                $pair['leagueHistories'][] = ['league' => $liveLeagueStub, 'history' => $livePair['history']];
+                $pairsWithLiveData[] = $pair;
             }
 
-            // Same overlay, applied to every alternate pair too (see
-            // attachAlternatePairs) — otherwise switching a card's chart to
-            // another pair while the live league is selected would silently
-            // drop that overlay line for it. Bound to a real reference
-            // variable first — `foreach ($investment['pairs'] ?? [] as &$x)`
-            // would iterate a disconnected copy, since `??` produces a new
-            // value rather than an alias to the original array, silently
-            // discarding every mutation made through `&$x`.
-            if (isset($investment['pairs'])) {
-                $pairs = &$investment['pairs'];
-                foreach ($pairs as &$altPair) {
-                    $altLivePair = self::findPairById($liveEntry['pairs'], $altPair['pairId']);
-                    if ($altLivePair !== null) {
-                        $altPair['leagueHistories'][] = ['league' => $liveLeagueStub, 'history' => $altLivePair['history']];
+            if ($mainHasRealData) {
+                $investment['leagueHistories'][] = ['league' => $liveLeagueStub, 'history' => $mainLivePair['history']];
+            } elseif ($pairsWithLiveData !== []) {
+                // The ranked/pinned pair itself has no real live data, but
+                // at least one alternate does — promote the best-performing
+                // of those to be the new main pair instead of dropping the
+                // card. Recomputes percentChange/leagueChanges from scratch,
+                // since an alternate pair doesn't carry those (see
+                // attachAlternatePairs) the way the ranked pair does.
+                $promoted = $pairsWithLiveData[0];
+                foreach ($pairsWithLiveData as $candidate) {
+                    if (($candidate['percentChange'] ?? -INF) > ($promoted['percentChange'] ?? -INF)) {
+                        $promoted = $candidate;
                     }
                 }
-                unset($altPair, $pairs);
+
+                $investment['pairId'] = $promoted['pairId'];
+                $investment['percentChange'] = $promoted['percentChange'];
+                $investment['leagueHistories'] = $promoted['leagueHistories'];
+                $investment['leagueChanges'] = [];
+                foreach ($promoted['leagueHistories'] as $entry) {
+                    if ($entry['league']['id'] === $liveLeagueId) {
+                        continue;
+                    }
+                    $change = MarketData::getWindowPercentChange(
+                        $entry['history'],
+                        $entry['league']['startDate'],
+                        $currentDayOfLeague,
+                        $daysForward,
+                    );
+                    if ($change !== null) {
+                        $investment['leagueChanges'][] = ['league' => $entry['league'], 'percentChange' => $change];
+                    }
+                }
+            } else {
+                // Not even one pair (ranked or alternate) has real live-
+                // league data for this item — drop it entirely, same as a
+                // fully-missing poe.ninja entry.
+                continue;
             }
 
+            if (isset($investment['pairs'])) {
+                $investment['pairs'] = $pairsWithLiveData;
+            }
             $result[] = $investment;
         }
 
         return $result;
+    }
+
+    /**
+     * A pair with no rows at all, nothing but poe.ninja's zero-volume "no
+     * real trades yet" placeholder, or nothing at $asOfTimestamp (its own
+     * latest real trade lags behind a sibling pair's — see
+     * latestHistoryTimestamp) isn't meaningfully different from having no
+     * data at all. $asOfTimestamp is null only when no pair of this item has
+     * any row whatsoever, in which case every row is checked regardless of
+     * date (there's nothing fresher to compare against).
+     */
+    private static function hasRealTradeData(array $history, ?string $asOfTimestamp): bool
+    {
+        foreach ($history as $row) {
+            if ($asOfTimestamp !== null && ($row['timestamp'] ?? null) !== $asOfTimestamp) {
+                continue;
+            }
+            if (($row['volumePrimaryValue'] ?? 0) > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The most recent timestamp any pair of this item has a history row
+     * for — poe.ninja's ISO 8601 UTC timestamps sort correctly as plain
+     * strings, so no date parsing is needed. Null only when every pair's
+     * history is completely empty.
+     */
+    private static function latestHistoryTimestamp(array $pairs): ?string
+    {
+        $latest = null;
+        foreach ($pairs as $pair) {
+            foreach ($pair['history'] as $row) {
+                $timestamp = $row['timestamp'] ?? null;
+                if ($timestamp !== null && ($latest === null || $timestamp > $latest)) {
+                    $latest = $timestamp;
+                }
+            }
+        }
+
+        return $latest;
     }
 
     /**
@@ -193,7 +306,21 @@ final class InvestmentPayloadBuilder
             // look up a dropped item's own name/id — augmentWithLiveLeague's
             // own return value no longer has it.
             $preDropBatch = $this->attachAlternatePairs($batch, $leagues, $currentDayOfLeague, $daysForward);
-            $survivedBatch = $this->augmentWithLiveLeague($preDropBatch, $leagueIds);
+            $survivedBatch = $this->augmentWithLiveLeague($preDropBatch, $leagueIds, $currentDayOfLeague, $daysForward);
+
+            // $rankedPool only contains items whose *original* (pre-
+            // promotion) pair was a real gain (see MarketData::
+            // getRankedInvestments' own percentChange > 0 qualifier), but a
+            // promoted pair (see augmentWithLiveLeague) carries a freshly
+            // recomputed percentChange of its own, which can come out <= 0.
+            // A promoted-to-a-loss investment doesn't belong in "best
+            // investments" any more than one whose original pair was a loss,
+            // so it's dropped here and backfilled from the pool exactly like
+            // a live-league-data drop.
+            $survivedBatch = array_values(array_filter(
+                $survivedBatch,
+                fn(array $investment): bool => ($investment['percentChange'] ?? 0) > 0,
+            ));
 
             if ($checked) {
                 $attemptedTotal += $this->poeNinjaClient->getLastAttemptedCount();
@@ -203,6 +330,12 @@ final class InvestmentPayloadBuilder
 
             $investments = [...$investments, ...$survivedBatch];
         }
+
+        // A promoted pair's recomputed percentChange can differ meaningfully
+        // from the original (pre-promotion) value $rankedPool was sorted by,
+        // so the final list is re-sorted here to keep "best investments"
+        // actually best-first despite any mid-list promotions.
+        usort($investments, fn(array $a, array $b): int => $b['percentChange'] <=> $a['percentChange']);
 
         return [
             'investments' => $investments,
@@ -267,6 +400,13 @@ final class InvestmentPayloadBuilder
         return [
             'item' => $investment['item'],
             'pairId' => $investment['pairId'],
+            // Only present for a pinned favorite (see MarketData::
+            // getInvestmentsForPins) — the exact pairId the pin was
+            // requested with, which can differ from 'pairId' above once
+            // augmentWithLiveLeague promotes a different pair. Lets the
+            // frontend match this result back to its pin without assuming
+            // the two pairIds stay equal.
+            'pinPairId' => $investment['pinPairId'] ?? null,
             'pairName' => MarketData::getPairDisplayName($investment['pairId'], $leagues),
             'pairImage' => MarketData::getPairImage($investment['pairId'], $leagues),
             'percentChange' => $investment['percentChange'],

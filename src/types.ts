@@ -114,6 +114,12 @@ export interface InvestmentPair {
 export interface BestInvestment {
   item: MarketItem
   pairId: string
+  // Only set for a pinned favorite: the exact pairId the pin was requested
+  // with (see FavoriteItem.pairId), which can differ from `pairId` above
+  // once the backend promotes a different pair (e.g. the pinned pair has no
+  // current-league data but another one does). Use this — not `pairId` —
+  // to match a favorites result back to the pin that produced it.
+  pinPairId?: string | null
   pairName: string
   pairImage: string | null
   // Nullable for a pinned favorite with no data at all in the current day

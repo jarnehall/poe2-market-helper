@@ -18,7 +18,7 @@ import { useFilters } from "../context/FiltersContext";
 import { useGame } from "../context/GameContext";
 import { useLeague } from "../context/LeagueContext";
 import { useMeta } from "../context/MetaContext";
-import { fetchBestInvestments, fetchFavorites } from "../lib/api";
+import { fetchBestInvestments, fetchFavorites, resetPoeNinjaCache } from "../lib/api";
 import { formatDate, formatTimeUntil } from "../lib/format";
 import {
   DEFAULT_CURRENT_DATE,
@@ -159,17 +159,21 @@ function MarketOverview() {
       const favoriteKeys = new Set(
         favorites.map((f) => `${f.itemId}::${f.pairId}`),
       );
-      const kept = current.filter((inv) =>
-        favoriteKeys.has(`${inv.item.id}::${inv.pairId}`),
-      );
+      // `pinPairId` (only set on results from the /favorites endpoint) is
+      // the pairId the pin was actually requested with — use it in place of
+      // `pairId` when present, since the backend can promote a pinned
+      // item's displayed pairId to a different one that actually has
+      // current-league data (see augmentWithLiveLeague). Falling back to
+      // `pairId` covers investments sourced from the best-investments list
+      // instead, which never carry `pinPairId` but were starred at their
+      // own current pairId, so the two coincide there anyway.
+      const pinKey = (inv: BestInvestmentEntry) =>
+        `${inv.item.id}::${inv.pinPairId ?? inv.pairId}`;
+      const kept = current.filter((inv) => favoriteKeys.has(pinKey(inv)));
 
-      const keptKeys = new Set(
-        kept.map((inv) => `${inv.item.id}::${inv.pairId}`),
-      );
+      const keptKeys = new Set(kept.map(pinKey));
       const newlyAvailable = investments.filter(
-        (inv) =>
-          favoriteKeys.has(`${inv.item.id}::${inv.pairId}`) &&
-          !keptKeys.has(`${inv.item.id}::${inv.pairId}`),
+        (inv) => favoriteKeys.has(pinKey(inv)) && !keptKeys.has(pinKey(inv)),
       );
 
       if (kept.length === current.length && newlyAvailable.length === 0) {
@@ -288,6 +292,26 @@ function MarketOverview() {
   // nothing to have "succeeded" or "failed" on this particular reload.
   const allPoeNinjaServedFromCache = poeNinjaStatus?.checked && poeNinjaStatus.attemptedCount === 0;
 
+  // Deliberately not real auth (the backend's own check is the same literal
+  // string) — just a confirmation gate so this destructive-ish action isn't
+  // one accidental click away, for a utility button used maybe once a
+  // league. window.prompt/alert rather than the app's own styled dialogs:
+  // this is an occasional admin nicety, not a primary user flow.
+  const handleResetPoeNinjaCache = () => {
+    const password = window.prompt('Enter the password to reset the poe.ninja cache:');
+    if (password === null) return;
+
+    resetPoeNinjaCache(password)
+      .then((response) => {
+        window.alert(
+          `Cleared ${response.cleared.length} poe.ninja cache file${response.cleared.length === 1 ? '' : 's'}. Fresh data will be fetched on the next reload.`,
+        );
+      })
+      .catch((error: unknown) => {
+        window.alert(`Couldn't reset the poe.ninja cache: ${error instanceof Error ? error.message : 'unknown error'}`);
+      });
+  };
+
   // The league's actual current day, independent of whatever day the
   // slider is browsing — same clamped calculation DayOfLeagueSlider uses
   // for its own "(today: day N)" hint.
@@ -304,7 +328,9 @@ function MarketOverview() {
   // `investments`. Rendered as trailing skeleton cards so there's still
   // instant feedback instead of a silent ~1s wait for the fetch.
   const loadedFavoriteKeys = new Set(
-    favoriteInvestments.map((inv) => `${inv.item.id}::${inv.pairId}`),
+    favoriteInvestments.map(
+      (inv) => `${inv.item.id}::${inv.pinPairId ?? inv.pairId}`,
+    ),
   );
   const pendingFavoritesCount = favorites.filter(
     (favorite) =>
@@ -450,6 +476,13 @@ function MarketOverview() {
                               : "All poe.ninja requests succeeded on the last reload"}
                           </p>
                         ))}
+                      <button
+                        type="button"
+                        className="poe-ninja-cache-reset-button"
+                        onClick={handleResetPoeNinjaCache}
+                      >
+                        Reset poe.ninja cache
+                      </button>
                     </div>
                   </div>
                 )}

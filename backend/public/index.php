@@ -22,6 +22,7 @@ require_once $backendDir . '/src/Api/BestInvestmentsController.php';
 require_once $backendDir . '/src/Api/FavoritesController.php';
 require_once $backendDir . '/src/Api/ItemsController.php';
 require_once $backendDir . '/src/Api/CurrentLeaguesController.php';
+require_once $backendDir . '/src/Api/PoeNinjaCacheController.php';
 
 use App\Api\BestInvestmentsController;
 use App\Api\CurrentLeaguesController;
@@ -29,6 +30,7 @@ use App\Api\FavoritesController;
 use App\Api\InvestmentPayloadBuilder;
 use App\Api\ItemsController;
 use App\Api\MetaController;
+use App\Api\PoeNinjaCacheController;
 use App\DataAccess\LeagueRepository;
 use App\DataAccess\PoeNinjaClient;
 use App\DataAccess\VisitorTracker;
@@ -142,6 +144,12 @@ if (str_starts_with($requestPath, '/api/')) {
     $router->get(
         '#^/api/current-leagues$#',
         fn() => (new CurrentLeaguesController($repoRoot))->index(),
+    );
+    // Also not game-scoped — clears every game's poe.ninja cache, not just
+    // whichever one happened to be open.
+    $router->post(
+        '#^/api/reset-poe-ninja-cache$#',
+        fn() => (new PoeNinjaCacheController($repoRoot))->index(file_get_contents('php://input')),
     );
     $router->dispatch($method, $requestPath);
 
