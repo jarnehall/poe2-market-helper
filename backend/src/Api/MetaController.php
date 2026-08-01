@@ -55,6 +55,12 @@ final class MetaController
         // ranking, so the frontend needs this to pick a sane default league
         // selection (one that will actually show results) rather than
         // always defaulting to leagues[0].
+        // startDate lets the frontend sort leagues by recency (see the
+        // recency-weighted ranking sliders in FiltersContext.tsx) without
+        // needing its own copy of leagues.php — the live league's own
+        // config entry has no 'startDate' at all (see leagues.php's own
+        // comment on why), so current-league.json's is the only source for
+        // it, same as name/color above.
         $leagues = array_map(function (array $config) use ($currentLeagueInfo): array {
             $isLive = $config['folder'] === null;
             if ($config['id'] === ($currentLeagueInfo['id'] ?? null)) {
@@ -62,11 +68,18 @@ final class MetaController
                     'id' => $config['id'],
                     'name' => $currentLeagueInfo['name'] ?? $config['name'],
                     'color' => $currentLeagueInfo['color'] ?? $config['color'],
+                    'startDate' => $currentLeagueInfo['startDate'] ?? $config['startDate'] ?? null,
                     'isLive' => $isLive,
                 ];
             }
 
-            return ['id' => $config['id'], 'name' => $config['name'], 'color' => $config['color'], 'isLive' => $isLive];
+            return [
+                'id' => $config['id'],
+                'name' => $config['name'],
+                'color' => $config['color'],
+                'startDate' => $config['startDate'] ?? null,
+                'isLive' => $isLive,
+            ];
         }, $this->leagueConfigs);
 
         JsonResponse::send([

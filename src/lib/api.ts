@@ -30,6 +30,16 @@ export interface BestInvestmentsParams {
   count: number
   minVolume: number
   useAveragePairs: boolean
+  // false (the app's own default): rank by a recency-weighted combination
+  // of each league's own day-weighted change (see leagueWeights) instead of
+  // a plain average — see MarketData::getRankedInvestments' own doc
+  // comment. Never affects any displayed number, only sort order.
+  usePureAverages: boolean
+  // One entry per currently selected (non-live) league — only meaningful
+  // when usePureAverages is false. Encoded as "id:weight,id:weight" (see
+  // QueryParams::parseWeightMap), not JSON, to match this app's existing
+  // terse comma-separated param style.
+  leagueWeights: Record<string, number>
 }
 
 export function fetchBestInvestments(
@@ -47,6 +57,10 @@ export function fetchBestInvestments(
     count: String(params.count),
     minVolume: String(params.minVolume),
     useAveragePairs: String(params.useAveragePairs),
+    usePureAverages: String(params.usePureAverages),
+    leagueWeights: Object.entries(params.leagueWeights)
+      .map(([id, weight]) => `${id}:${weight}`)
+      .join(','),
   })
 
   return fetchJson<BestInvestmentsResponse>(`/api/best-investments?${query.toString()}`, { signal })

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import AveragePairsToggle from "../components/AveragePairsToggle";
 import BestInvestment from "../components/BestInvestment";
 import CategoryFilter from "../components/CategoryFilter";
 import ChevronIcon from "../components/ChevronIcon";
@@ -9,8 +8,10 @@ import FavoritesSearch from "../components/FavoritesSearch";
 import GameSwitcher from "../components/GameSwitcher";
 import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
+import LeagueWeightSliders from "../components/LeagueWeightSliders";
 import MinVolumeSlider from "../components/MinVolumeSlider";
 import PairCurrencyFilter from "../components/PairCurrencyFilter";
+import PureAveragesToggle from "../components/PureAveragesToggle";
 import ResetFiltersButton from "../components/ResetFiltersButton";
 import Tooltip from "../components/Tooltip";
 import { useFavorites } from "../context/FavoritesContext";
@@ -50,8 +51,12 @@ function MarketOverview() {
   const requestLeagueIds = liveLeague
     ? [...selectedLeagueIds, liveLeague.id]
     : selectedLeagueIds;
-  const { filters, setInvestmentCount, setMinVolume, setUseAveragePairs } =
-    useFilters();
+  const {
+    filters,
+    setInvestmentCount,
+    setMinVolume,
+    setUsePureAverages,
+  } = useFilters();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filtersMenuRef = useRef<HTMLDivElement>(null);
   const { ref: filtersDropdownRef, style: filtersDropdownStyle } =
@@ -125,6 +130,8 @@ function MarketOverview() {
           count: filters.investmentCount,
           minVolume: filters.minVolume,
           useAveragePairs: filters.useAveragePairs,
+          usePureAverages: filters.usePureAverages,
+          leagueWeights: filters.leagueWeights,
         },
         controller.signal,
       )
@@ -449,10 +456,11 @@ function MarketOverview() {
                       minCount={bounds.minBestInvestmentCount}
                       maxCount={bounds.maxBestInvestmentCount}
                     />
-                    <AveragePairsToggle
-                      checked={filters.useAveragePairs}
-                      onChange={setUseAveragePairs}
+                    <PureAveragesToggle
+                      checked={filters.usePureAverages}
+                      onChange={setUsePureAverages}
                     />
+                    <LeagueWeightSliders />
                     <div className="settings-info">
                       <p className="settings-info-line">
                         {visitorCount} unique visitor

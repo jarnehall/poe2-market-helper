@@ -44,4 +44,33 @@ final class QueryParams
     {
         return $value === '1' || $value === 'true';
     }
+
+    /**
+     * Parses "id:weight,id:weight" (see src/context/FiltersContext.tsx's
+     * own encoding) into ['id' => weight]. A malformed entry (missing the
+     * colon, a non-numeric weight) is skipped rather than erroring the
+     * whole request — a stale hand-edited URL shouldn't break ranking, it
+     * should just fall back to a default weight for whichever leagues it
+     * failed to parse (see MarketData::defaultLeagueWeights and its use in
+     * BestInvestmentsController).
+     *
+     * @return array<string, float>
+     */
+    public static function parseWeightMap(mixed $value): array
+    {
+        $weights = [];
+        foreach (self::splitParam($value) as $pair) {
+            $parts = explode(':', $pair, 2);
+            if (count($parts) !== 2) {
+                continue;
+            }
+            [$id, $weight] = $parts;
+            if ($id === '' || !is_numeric($weight)) {
+                continue;
+            }
+            $weights[$id] = (float) $weight;
+        }
+
+        return $weights;
+    }
 }

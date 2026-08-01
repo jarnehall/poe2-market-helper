@@ -267,6 +267,179 @@ check(
     'useAveragePairs reports just the winning pair\'s own +100%, not an average dragged down by the losing pair\'s -50% (which was never a qualifying candidate)',
 );
 
+// --- getRankedInvestments: $usePureAverages controls sort order only — ---
+// --- $percentChange (what's actually displayed) is identical either way. ---
+// Day-weighting first: two items with the *same* start/end percent change
+// (so pure-average mode can't tell them apart at all) — one jumps
+// immediately after currentDayOfLeague and holds, the other only jumps on
+// the window's very last day. Weighted mode must rank the early jump above
+// the late one even though their endpoints agree exactly.
+
+$dayWeightLeague = [
+    'id' => 'day-weight-league',
+    'name' => 'Day Weight League',
+    'color' => '#000000',
+    'startDate' => $leagueStart,
+    'itemEntries' => [
+        [
+            'item' => ['id' => 'early-spike', 'name' => 'Early Spike', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'early-spike'],
+            'pairs' => [[
+                'id' => 'chaos',
+                'rate' => 200.0,
+                'volumePrimaryValue' => 100,
+                // Jumps to 200 on day 2 and holds — every day from day 2
+                // onward already shows the full +100% vs. day 1.
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 200.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-04T00:00:00Z', 'rate' => 200.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 200.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 200.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
+                ],
+            ]],
+        ],
+        [
+            'item' => ['id' => 'late-spike', 'name' => 'Late Spike', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'late-spike'],
+            'pairs' => [[
+                'id' => 'chaos',
+                'rate' => 200.0,
+                'volumePrimaryValue' => 100,
+                // Flat until the very last day (day 5), which alone jumps to
+                // 200 — the same +100% by day 5, but nothing before it.
+                'history' => [
+                    ['timestamp' => '2026-01-05T00:00:00Z', 'rate' => 200.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-04T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-03T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
+                    ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 100.0, 'volumePrimaryValue' => 100],
+                ],
+            ]],
+        ],
+    ],
+];
+
+$dayWeightPureAveraged = MarketData::getRankedInvestments(
+    [$dayWeightLeague],
+    currentDayOfLeague: 1,
+    daysForward: 4,
+    minVolume: 0,
+    usePureAverages: true,
+);
+$dayWeightWeighted = MarketData::getRankedInvestments(
+    [$dayWeightLeague],
+    currentDayOfLeague: 1,
+    daysForward: 4,
+    minVolume: 0,
+    usePureAverages: false,
+    leagueWeights: ['day-weight-league' => 100.0],
+);
+
+check(
+    count($dayWeightPureAveraged) === 2
+        && closeTo($dayWeightPureAveraged[0]['percentChange'], 100.0)
+        && closeTo($dayWeightPureAveraged[1]['percentChange'], 100.0),
+    'usePureAverages: true reports the identical +100% for both items — day-weighting never even computed, purely the day1->day5 endpoints',
+);
+check(
+    ($dayWeightWeighted[0]['item']['id'] ?? null) === 'early-spike',
+    'usePureAverages: false ranks the early, held jump above the identical-magnitude late-only jump, despite both sharing the exact same displayed percentChange',
+);
+
+// --- getRankedInvestments: league recency weighting. Two items with the ---
+// --- exact same plain 3-league average (so pure-average mode ties them), ---
+// one strong in the *newest* league and weak in the older ones, the other
+// the mirror image — weighted mode (using the default recency-decayed
+// weights, ~69/23/8 for 3 leagues) must rank the "strong in the newest
+// league" item well above the "strong in the old leagues" one.
+
+function smokeLeagueWeightFixtureLeague(string $id, string $startDate): array
+{
+    return ['id' => $id, 'name' => $id, 'color' => '#000000', 'startDate' => $startDate];
+}
+
+function smokeLeagueWeightItemEntry(string $itemId, float $rate, string $leagueStartDate): array
+{
+    // day1 rate 100 -> day2 rate $rate, a single-day window (daysForward: 1)
+    // so day-weighting can't influence this test at all — isolates the
+    // league-recency effect specifically. day1/day2 are computed from
+    // *this league's own* startDate (each fixture league below starts
+    // exactly at UTC midnight, so day 1 is that same instant and day 2 is
+    // 24h later) — day-of-league is always anchored per-league, never a
+    // shared calendar date, so reusing one hardcoded date across leagues
+    // with different startDates would put every row on the wrong day for
+    // every league except whichever one happens to start on that date.
+    $day1 = date('Y-m-d\TH:i:s\Z', strtotime($leagueStartDate));
+    $day2 = date('Y-m-d\TH:i:s\Z', strtotime($leagueStartDate) + 86400);
+
+    return [
+        'item' => ['id' => $itemId, 'name' => $itemId, 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => $itemId],
+        'pairs' => [[
+            'id' => 'chaos',
+            'rate' => $rate,
+            'volumePrimaryValue' => 100,
+            'history' => [
+                ['timestamp' => $day2, 'rate' => $rate, 'volumePrimaryValue' => 100],
+                ['timestamp' => $day1, 'rate' => 100.0, 'volumePrimaryValue' => 100],
+            ],
+        ]],
+    ];
+}
+
+$leagueWeightOld = smokeLeagueWeightFixtureLeague('lw-old', '2025-01-01T00:00:00Z');
+$leagueWeightMid = smokeLeagueWeightFixtureLeague('lw-mid', '2025-06-01T00:00:00Z');
+$leagueWeightNew = smokeLeagueWeightFixtureLeague('lw-new', '2026-01-01T00:00:00Z');
+
+// strong-recent: +90% in the newest league, +10% in the two older ones.
+// strong-old: the mirror image — +10% in the newest, +90% in the oldest.
+// Both average to the exact same (90+10+10)/3 = 36.67% under a plain mean.
+$leagueWeightOld['itemEntries'] = [
+    smokeLeagueWeightItemEntry('strong-recent', 110.0, $leagueWeightOld['startDate']),
+    smokeLeagueWeightItemEntry('strong-old', 190.0, $leagueWeightOld['startDate']),
+];
+$leagueWeightMid['itemEntries'] = [
+    smokeLeagueWeightItemEntry('strong-recent', 110.0, $leagueWeightMid['startDate']),
+    smokeLeagueWeightItemEntry('strong-old', 110.0, $leagueWeightMid['startDate']),
+];
+$leagueWeightNew['itemEntries'] = [
+    smokeLeagueWeightItemEntry('strong-recent', 190.0, $leagueWeightNew['startDate']),
+    smokeLeagueWeightItemEntry('strong-old', 110.0, $leagueWeightNew['startDate']),
+];
+$leagueWeightLeagues = [$leagueWeightOld, $leagueWeightMid, $leagueWeightNew];
+
+$leagueWeightPureAveraged = MarketData::getRankedInvestments(
+    $leagueWeightLeagues,
+    currentDayOfLeague: 1,
+    daysForward: 1,
+    minVolume: 0,
+    usePureAverages: true,
+);
+$leagueWeightDefaults = MarketData::defaultLeagueWeights($leagueWeightLeagues);
+$leagueWeightWeighted = MarketData::getRankedInvestments(
+    $leagueWeightLeagues,
+    currentDayOfLeague: 1,
+    daysForward: 1,
+    minVolume: 0,
+    usePureAverages: false,
+    leagueWeights: $leagueWeightDefaults,
+);
+
+check(
+    closeTo($leagueWeightDefaults['lw-new'] ?? null, 69.23)
+        && closeTo($leagueWeightDefaults['lw-mid'] ?? null, 23.08)
+        && closeTo($leagueWeightDefaults['lw-old'] ?? null, 7.69),
+    'defaultLeagueWeights decays geometrically newest-first (~69/23/8 for 3 leagues), regardless of the order the leagues were passed in',
+);
+check(
+    count($leagueWeightPureAveraged) === 2
+        && closeTo($leagueWeightPureAveraged[0]['percentChange'], 36.666666)
+        && closeTo($leagueWeightPureAveraged[1]['percentChange'], 36.666666),
+    'usePureAverages: true reports the identical ~36.67% plain average for both items regardless of which league each one\'s gain actually came from',
+);
+check(
+    ($leagueWeightWeighted[0]['item']['id'] ?? null) === 'strong-recent',
+    'usePureAverages: false ranks the item strong in the *newest* league above the mirror-image item strong in the oldest one, despite both sharing the exact same plain-average percentChange',
+);
+
 // --- MarketData::hasDataInWindow distinguishes "no data at all for this ---
 // --- day/window" from "data exists but nothing qualifies" — the latter is
 // what getRankedInvestments' own empty result normally means, but a static

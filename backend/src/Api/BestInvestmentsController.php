@@ -81,8 +81,29 @@ final class BestInvestmentsController
             (float) $this->bounds['maxVolumeFilter'],
         );
         $useAveragePairs = QueryParams::bool($query['useAveragePairs'] ?? null);
+        // Absent (or any value other than '1'/'true') means false — the
+        // app's own actual default is the *weighted* ranking below, not the
+        // plain average this flag is named for; see MarketData::
+        // getRankedInvestments' own doc comment for what each mode means.
+        $usePureAverages = QueryParams::bool($query['usePureAverages'] ?? null);
 
         $leagues = $this->repository->loadFiltered($leagueIds, $categories, $pairCurrencies);
+
+        // Recency-based defaults (see MarketData::defaultLeagueWeights) as
+        // a baseline, with the frontend's own explicit weight substituted
+        // in for whichever of *these* leagues it actually sent one for —
+        // covers both a request that omits leagueWeights entirely (mirrors
+        // the frontend's own default slider positions) and one that's
+        // missing an entry for a league the user just added to their
+        // selection (the frontend only knows to send weights for leagues it
+        // already had sliders for).
+        $leagueWeights = MarketData::defaultLeagueWeights($leagues);
+        foreach (QueryParams::parseWeightMap($query['leagueWeights'] ?? '') as $leagueId => $weight) {
+            if (isset($leagueWeights[$leagueId])) {
+                $leagueWeights[$leagueId] = $weight;
+            }
+        }
+
         // Every qualifying investment, not just the top $count — so an item
         // dropped for having no live-league poe.ninja data (see
         // resolveRankedInvestments) can be backfilled from the rest of the
@@ -93,6 +114,8 @@ final class BestInvestmentsController
             $daysForward,
             $minVolume,
             $useAveragePairs,
+            $usePureAverages,
+            $leagueWeights,
         );
 
         $resolved = $this->payloadBuilder->resolveRankedInvestments(

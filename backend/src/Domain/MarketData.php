@@ -139,6 +139,126 @@ final class MarketData
         return (($endRow['entry']['rate'] - $startRow['entry']['rate']) / $startRow['entry']['rate']) * 100;
     }
 
+    /**
+     * Like windowPercentChangeFromRows, but weighted toward whichever days
+     * moved *soonest* after currentDayOfLeague, rather than purely comparing
+     * the window's two endpoints — an item that jumps immediately and holds
+     * ranks above one that only jumps on the window's very last day, even
+     * if both end up at the same final percent change. Used only for
+     * ranking (see getRankedInvestments' $usePureAverages); the card's own
+     * displayed percentChange always stays the plain endpoint-to-endpoint
+     * comparison above.
+     *
+     * Each day 1..daysForward after currentDayOfLeague contributes its own
+     * cumulative change from currentDayOfLeague, weighted linearly by how
+     * soon it falls (day 1 gets weight daysForward, the final day gets
+     * weight 1) — a day with no trade that day just doesn't contribute,
+     * the same way a missing endpoint skips a league entirely elsewhere in
+     * this file, rather than forcing every day in the window to exist.
+     */
+    private static function dayWeightedPercentChange(array $rows, int $currentDayOfLeague, int $daysForward): ?float
+    {
+        if ($daysForward <= 0) {
+            return null;
+        }
+
+        $baseRow = self::findRowByDay($rows, $currentDayOfLeague);
+        if ($baseRow === null) {
+            return null;
+        }
+
+        $weightedSum = 0.0;
+        $weightTotal = 0.0;
+
+        for ($daysAhead = 1; $daysAhead <= $daysForward; $daysAhead++) {
+            $row = self::findRowByDay($rows, $currentDayOfLeague + $daysAhead);
+            if ($row === null) {
+                continue;
+            }
+
+            $change = (($row['entry']['rate'] - $baseRow['entry']['rate']) / $baseRow['entry']['rate']) * 100;
+            $weight = $daysForward - $daysAhead + 1;
+            $weightedSum += $change * $weight;
+            $weightTotal += $weight;
+        }
+
+        return $weightTotal > 0 ? $weightedSum / $weightTotal : null;
+    }
+
+    /**
+     * Combines each league's own change (already computed by the caller —
+     * either the plain endpoint comparison or the day-weighted one above)
+     * into one score, weighted by that league's own entry in $leagueWeights
+     * rather than a plain average. Weights are only ever used relative to
+     * each other here (dividing by whatever weight actually applies to the
+     * leagues *present* in $leagueChanges re-normalizes automatically among
+     * them), so callers don't need to pre-normalize to a particular total —
+     * see getRankedInvestments for where the weights themselves come from.
+     * Falls back to a plain average if every present league's weight is
+     * zero/missing (shouldn't normally happen — BestInvestmentsController
+     * always supplies a full map — but avoids a division by zero if it does).
+     *
+     * @param array<int, array{league: array, percentChange: float}> $leagueChanges
+     * @param array<string, float> $leagueWeights league id => weight
+     */
+    private static function weightedAverage(array $leagueChanges, array $leagueWeights): ?float
+    {
+        if ($leagueChanges === []) {
+            return null;
+        }
+
+        $weightedSum = 0.0;
+        $weightTotal = 0.0;
+        foreach ($leagueChanges as $entry) {
+            $weight = $leagueWeights[$entry['league']['id']] ?? 0.0;
+            $weightedSum += $entry['percentChange'] * $weight;
+            $weightTotal += $weight;
+        }
+
+        if ($weightTotal <= 0) {
+            return self::average(array_map(fn(array $c): float => $c['percentChange'], $leagueChanges));
+        }
+
+        return $weightedSum / $weightTotal;
+    }
+
+    /**
+     * Sensible recency-based defaults when the caller doesn't supply its
+     * own per-league weights (or only supplies some of them) — geometric
+     * decay favoring more recently-started leagues, each subsequent one
+     * (by startDate, latest first) getting a third of the previous one's
+     * weight, normalized to sum to 100. For 3 leagues that's roughly
+     * 69/23/8; for 1 league it's just 100. Mirrors the frontend's own
+     * default slider positions (see FiltersContext.tsx's
+     * defaultLeagueWeights) so a request that omits leagueWeights entirely
+     * still ranks sensibly rather than falling back to an even split.
+     *
+     * @return array<string, float> league id => weight
+     */
+    public static function defaultLeagueWeights(array $leagues): array
+    {
+        $sorted = $leagues;
+        usort($sorted, fn(array $a, array $b): int => strcmp($b['startDate'], $a['startDate']));
+
+        $ratio = 1 / 3;
+        $raw = [];
+        foreach ($sorted as $index => $league) {
+            $raw[$league['id']] = $ratio ** $index;
+        }
+
+        $sum = array_sum($raw);
+        if ($sum <= 0) {
+            return [];
+        }
+
+        $weights = [];
+        foreach ($raw as $id => $value) {
+            $weights[$id] = ($value / $sum) * 100;
+        }
+
+        return $weights;
+    }
+
     /** A pair's trade volume on exactly currentDayOfLeague, or null if there's no entry for that day. */
     public static function getVolumeForDay(array $history, string $startDate, int $currentDayOfLeague): ?float
     {
@@ -270,6 +390,10 @@ final class MarketData
      * the rest of the ranked pool too (backfilling past an item poe.ninja
      * turns out to have no live-league data for — see
      * InvestmentPayloadBuilder::applyLiveLeague).
+     *
+     * $usePureAverages/$leagueWeights control *sort order* only (see
+     * getRankedInvestments) — every displayed number (percentChange,
+     * leagueChanges) is completely unaffected by either.
      */
     public static function getBestInvestmentsForWindow(
         array $leagues,
@@ -278,9 +402,19 @@ final class MarketData
         int $daysForward,
         float $minVolume,
         bool $useAveragePairs = false,
+        bool $usePureAverages = true,
+        array $leagueWeights = [],
     ): array {
         return array_slice(
-            self::getRankedInvestments($leagues, $currentDayOfLeague, $daysForward, $minVolume, $useAveragePairs),
+            self::getRankedInvestments(
+                $leagues,
+                $currentDayOfLeague,
+                $daysForward,
+                $minVolume,
+                $useAveragePairs,
+                $usePureAverages,
+                $leagueWeights,
+            ),
             0,
             $count,
         );
@@ -290,6 +424,25 @@ final class MarketData
      * Same ranking as getBestInvestmentsForWindow, but returns every
      * qualifying investment (sorted, best first) rather than just the top
      * $count of them.
+     *
+     * $usePureAverages (default true, for existing callers that don't pass
+     * it — BestInvestmentsController always passes an explicit value
+     * resolved from the request, defaulting to false when absent, which is
+     * the app's actual default behavior) picks which of two sort keys is
+     * used, computed for every qualifying item regardless of the flag so
+     * toggling it never needs a re-fetch:
+     *   - true: $percentChange, the plain average shown on the card —
+     *     today's existing behavior, completely unchanged.
+     *   - false: $rankingScore, a *separate* number used only to decide
+     *     sort order — a recency-weighted combination across leagues (via
+     *     $leagueWeights, see defaultLeagueWeights) of each league's own
+     *     day-weighted change (see dayWeightedPercentChange) instead of a
+     *     plain average of plain endpoint-to-endpoint changes. Which pair
+     *     is chosen as an item's "best" (and everything derived from it —
+     *     percentChange, leagueChanges, the chart) is still decided by
+     *     $percentChange either way, never $rankingScore — only the final
+     *     list order differs, exactly matching the requirement that an
+     *     item's card looks identical regardless of this setting.
      */
     public static function getRankedInvestments(
         array $leagues,
@@ -297,6 +450,8 @@ final class MarketData
         int $daysForward,
         float $minVolume,
         bool $useAveragePairs = false,
+        bool $usePureAverages = true,
+        array $leagueWeights = [],
     ): array {
         // Indexed once per call (a plain local variable — never a `static`
         // cache across requests, since itemEntries differ by request
@@ -331,6 +486,7 @@ final class MarketData
             foreach ($merged['pairIds'] as $pairId) {
                 $volumes = [];
                 $leagueChanges = [];
+                $rankingLeagueChanges = [];
                 $leagueHistories = [];
 
                 foreach ($leagues as $league) {
@@ -368,6 +524,15 @@ final class MarketData
                     if ($change !== null) {
                         $leagueChanges[] = ['league' => $league, 'percentChange' => $change];
                     }
+
+                    // Ranking-only (see class-level doc on $usePureAverages
+                    // above) — never shown, computed alongside $change
+                    // rather than gated behind $usePureAverages so toggling
+                    // it client-side never needs a re-fetch.
+                    $dayWeightedChange = self::dayWeightedPercentChange($rows, $currentDayOfLeague, $daysForward);
+                    if ($dayWeightedChange !== null) {
+                        $rankingLeagueChanges[] = ['league' => $league, 'percentChange' => $dayWeightedChange];
+                    }
                 }
 
                 $volume = self::average($volumes);
@@ -383,6 +548,7 @@ final class MarketData
                 $qualifyingPairs[] = [
                     'pairId' => $pairId,
                     'percentChange' => $percentChange,
+                    'rankingScore' => self::weightedAverage($rankingLeagueChanges, $leagueWeights),
                     'leagueChanges' => $leagueChanges,
                     'leagueHistories' => $leagueHistories,
                 ];
@@ -392,6 +558,10 @@ final class MarketData
                 continue;
             }
 
+            // Which pair represents this item — and everything shown for it
+            // (percentChange, leagueChanges, the chart) — is always decided
+            // by $percentChange, never $rankingScore, regardless of
+            // $usePureAverages: only the final sort order below differs.
             $best = $qualifyingPairs[0];
             foreach ($qualifyingPairs as $candidate) {
                 if ($candidate['percentChange'] > $best['percentChange']) {
@@ -405,18 +575,34 @@ final class MarketData
             $leagueChanges = $useAveragePairs
                 ? self::averageLeagueChangesAcrossPairs($qualifyingPairs)
                 : $best['leagueChanges'];
+            $rankingScore = $useAveragePairs
+                // Explicit !== null filter, not a bare array_filter() — a
+                // genuine 0.0 rankingScore (a perfectly flat pair) is a real
+                // value, not "missing", and self::average() would otherwise
+                // silently coerce a null to 0 via array_sum() while still
+                // counting it in the denominator, wrongly dragging the
+                // average toward 0.
+                ? self::average(array_values(array_filter(
+                    array_map(fn(array $pair): ?float => $pair['rankingScore'], $qualifyingPairs),
+                    fn(?float $score): bool => $score !== null,
+                )))
+                : $best['rankingScore'];
 
             $bestByItemId[$item['id']] = [
                 'item' => $item,
                 'pairId' => $best['pairId'],
                 'percentChange' => $percentChange,
+                'rankingScore' => $rankingScore,
                 'leagueChanges' => $leagueChanges,
                 'leagueHistories' => $best['leagueHistories'],
             ];
         }
 
         $result = array_values($bestByItemId);
-        usort($result, fn(array $a, array $b): int => $b['percentChange'] <=> $a['percentChange']);
+        $sortValue = fn(array $investment): float => $usePureAverages
+            ? $investment['percentChange']
+            : ($investment['rankingScore'] ?? $investment['percentChange']);
+        usort($result, fn(array $a, array $b): int => $sortValue($b) <=> $sortValue($a));
 
         return $result;
     }

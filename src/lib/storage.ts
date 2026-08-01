@@ -47,3 +47,32 @@ export function getStoredStringArray(
 export function setStoredStringArray(key: string, value: string[]): void {
   localStorage.setItem(key, JSON.stringify(value))
 }
+
+// Used for per-league ranking weights (see FiltersContext.tsx) — keyed by
+// league id since which leagues even exist to have a weight varies by
+// selection, unlike a fixed-shape settings object.
+export function getStoredNumberRecord(
+  key: string,
+  fallback: Record<string, number>,
+): Record<string, number> {
+  const raw = localStorage.getItem(key)
+  if (raw === null) return fallback
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      Object.values(parsed).every((value) => typeof value === 'number' && Number.isFinite(value))
+    ) {
+      return parsed as Record<string, number>
+    }
+  } catch {
+    // Malformed data, fall through to the fallback.
+  }
+  return fallback
+}
+
+export function setStoredNumberRecord(key: string, value: Record<string, number>): void {
+  localStorage.setItem(key, JSON.stringify(value))
+}

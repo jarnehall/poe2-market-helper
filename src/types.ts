@@ -43,6 +43,10 @@ export interface LeagueMeta {
   id: string
   name: string
   color: string
+  // Lets a consumer sort leagues by recency (see the recency-weighted
+  // ranking sliders in FiltersContext.tsx) without needing its own copy of
+  // backend/config/leagues.php.
+  startDate: string
   // The current, still-running league — fetched live from poe.ninja instead
   // of a static data/ folder, so it never contributes to best-investments
   // ranking (only shown as an extra overlay line when selected).
