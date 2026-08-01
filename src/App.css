@@ -199,12 +199,6 @@
   color: var(--text-h);
 }
 
-/* Same font-baseline nudge as .league-filter-badge-name — the pill's own
-   text sits visually low against the dot/border otherwise. */
-.league-banner-started-text {
-  transform: translateY(-1px);
-}
-
 .league-banner-started-dot {
   width: 7px;
   height: 7px;
@@ -455,14 +449,6 @@
   border-radius: 999px;
   background: var(--league-color);
   flex-shrink: 0;
-}
-
-/* The league name's own font sits visually low within its line box compared
-   to the dot/tag either side of it — align-items: center on the row still
-   centers by box height, not by glyph position, so this nudges the text up
-   to actually look level with them. */
-.league-filter-badge-name {
-  transform: translateY(-1px);
 }
 
 .league-filter-current-tag {
@@ -1037,12 +1023,13 @@
   height: 23px;
 }
 
-/* Matches .best-investment-name's own min-height (2 lines reserved) so the
-   skeleton card is the same height as the loaded card, whether the real
-   name that swaps in ends up wrapping to 2 lines or not. */
+/* Matches .best-investment-name's own single-line height (see
+   .skeleton-text above) so the skeleton card is the same height as the
+   loaded card once the real (also single-line, ellipsis-truncated) name
+   swaps in. */
 .skeleton-text-name {
   width: 55%;
-  height: 46px;
+  height: 23px;
 }
 
 .skeleton-text-badge {
@@ -1054,7 +1041,7 @@
 
 .skeleton-chart {
   width: 100%;
-  aspect-ratio: 160 / 50;
+  aspect-ratio: 160 / 60;
 }
 
 .skeleton-text-versus {
@@ -1099,21 +1086,21 @@
   min-width: 0;
 }
 
-/* min-height reserves space for 2 lines (2 x the 23.2px line-height every
-   text element inherits from the root's font: 16px/145% shorthand — see
-   .skeleton-text's comment below) so a long name wrapping to a second line
-   doesn't push the image/chart/footer below it down, and short single-line
-   names stay vertically centered in that same reserved space instead of
-   sitting at its top. */
+/* Single line, truncated with an ellipsis rather than reserving room for a
+   long name to wrap to a second one — that used to leave a fixed min-height
+   tall enough for 2 lines on every card, even the vast majority with a
+   short one-line name, which read as a wide band of dead air above the
+   chart. The full name is always still available via the wrapping Tooltip
+   (see InvestmentCard.tsx), same pattern as .pair-switcher-button-name. */
 .best-investment-name {
-  display: flex;
-  align-items: center;
-  min-height: 46px;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: "Optimus Princeps", var(--sans);
   font-size: 18px;
   font-weight: 300;
   color: var(--text-h);
-  overflow-wrap: break-word;
 }
 
 /* Houses .best-investment-versus/.pair-switcher (left, only one visible at
@@ -1290,12 +1277,6 @@
   flex-shrink: 0;
 }
 
-/* Same font-baseline nudge as .league-filter-badge-name/.league-banner-started-text,
-   but at this small a font-size -2px overshoots, so -1px instead. */
-.best-investment-change-breakdown-text {
-  transform: translateY(-1px);
-}
-
 .best-investment-poe-ninja-link {
   font-size: 12px;
   color: var(--text);
@@ -1455,6 +1436,15 @@
 .investment-trend-grid-line {
   stroke: var(--border);
   stroke-width: 0.75;
+}
+
+/* Faint and dashed rather than a solid line — it's a reference, not another
+   data series, so it needs to read as background structure the highlighted
+   current-day dots sit on top of, not compete with the actual trend lines. */
+.investment-trend-today-line {
+  stroke: var(--border);
+  stroke-width: 0.75;
+  stroke-dasharray: 2 2;
 }
 
 .investment-trend-grid-label {

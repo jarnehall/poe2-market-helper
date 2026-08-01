@@ -18,6 +18,25 @@
   font-display: swap;
 }
 
+/* --sans's own face — every weight the app uses (300 through 700) comes
+   from this single variable file rather than needing one static weight
+   per file, so any font-weight declared anywhere just works. */
+@font-face {
+  font-family: "Roboto";
+  src: url("./assets/fonts/Roboto-Variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Roboto";
+  src: url("./assets/fonts/Roboto-Italic-Variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
 /* Design tokens. Always dark — this app doesn't have a light mode,
    regardless of the OS/browser color-scheme preference.
 
@@ -53,7 +72,7 @@
   --radius-md: 8px;
   --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5);
 
-  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
+  --sans: "Roboto", system-ui, "Segoe UI", sans-serif;
 
   font: 16px/145% var(--sans);
   color-scheme: dark;

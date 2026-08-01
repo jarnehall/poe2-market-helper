@@ -81,10 +81,12 @@ function FavoritesSearch() {
           setHighlightedIndex(0);
         }}
         onBlur={() => {
-          // Deferred a tick — blur fires before a click on a result row/star
-          // finishes registering (mousedown moves focus off the input
-          // first), so clearing synchronously here would wipe the results
-          // out from under that click before its own handler ran.
+          // A click inside the dropdown itself never reaches here (see the
+          // result row's onMouseDown below) — this only fires for a blur to
+          // somewhere else entirely (Tab, clicking outside), so there's
+          // nothing left to race with. Still deferred a tick regardless,
+          // since clearing synchronously on blur is a common source of
+          // fights with whatever's about to take focus.
           window.setTimeout(() => {
             setQuery("");
             setIsOpen(false);
@@ -130,6 +132,15 @@ function FavoritesSearch() {
                     : "favorites-search-result"
                 }
                 onMouseEnter={() => setHighlightedIndex(index)}
+                // Without this, mousedown on this (non-focusable) row still
+                // blurs the input first — by the time the click event that
+                // actually toggles the favorite fires, onBlur's own handler
+                // may already have cleared the query and closed the
+                // dropdown out from under it. preventDefault() here stops
+                // the browser's default "move focus away" behavior for
+                // mousedown, so the input never blurs for a click inside
+                // the dropdown at all, and the click always lands.
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => toggleFavorite(toFavorite(item))}
               >
                 <img

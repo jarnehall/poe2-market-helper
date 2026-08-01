@@ -126,19 +126,21 @@ final class InvestmentPayloadBuilder
                 continue;
             }
 
-            // How recent a pair's own latest real trade needs to be to still
-            // count as "has real live data" — the freshest date poe.ninja
-            // reported *any* real trade on, across every pair of this item.
-            // A pair whose own latest real row falls short of that (e.g. it
-            // last traded yesterday while a sibling pair traded today) is
-            // treated the same as having no real data at all: keeping it as
-            // the ranked/pinned pair would silently show stale data next to
-            // a "current league" label, even though it did have real trades
-            // once. Comparing against the whole item's own freshest date —
-            // not literally "today" — avoids false negatives right after
-            // league launch or during a lull when poe.ninja hasn't posted
-            // *any* pair's latest day yet.
-            $asOfTimestamp = self::latestHistoryTimestamp($liveEntry['pairs']);
+            // How recent a pair's own latest *real* trade needs to be to
+            // still count as "has real live data" — the freshest date any
+            // pair of this item actually traded on, across all of them. A
+            // pair whose own latest real trade falls short of that (e.g. it
+            // last traded two days ago while a sibling pair traded
+            // yesterday) is treated the same as having no real data at all:
+            // keeping it as the ranked/pinned pair would silently show
+            // stale data next to a "current league" label, even though it
+            // did have real trades once. Comparing against the whole item's
+            // own freshest *real-trade* date — not literally "today", and
+            // not just whichever pair happens to have the newest row at all
+            // (see latestRealTradeTimestamp) — avoids false negatives both
+            // right after league launch and on an ordinary day nothing
+            // happened to trade.
+            $asOfTimestamp = self::latestRealTradeTimestamp($liveEntry['pairs']);
 
             // The ranked/pinned pair is checked directly against $liveEntry
             // (not just via $investment['pairs']) — attachAlternatePairs can
@@ -215,12 +217,13 @@ final class InvestmentPayloadBuilder
 
     /**
      * A pair with no rows at all, nothing but poe.ninja's zero-volume "no
-     * real trades yet" placeholder, or nothing at $asOfTimestamp (its own
-     * latest real trade lags behind a sibling pair's — see
-     * latestHistoryTimestamp) isn't meaningfully different from having no
-     * data at all. $asOfTimestamp is null only when no pair of this item has
-     * any row whatsoever, in which case every row is checked regardless of
-     * date (there's nothing fresher to compare against).
+     * real trades yet" placeholder, or nothing *with real volume* at
+     * $asOfTimestamp (its own latest real trade lags behind a sibling
+     * pair's — see latestRealTradeTimestamp) isn't meaningfully different
+     * from having no data at all. $asOfTimestamp is null only when no pair
+     * of this item has a single real-volume row anywhere, in which case
+     * every row is checked regardless of date (there's nothing fresher to
+     * compare against, and the loop below will simply find nothing).
      */
     private static function hasRealTradeData(array $history, ?string $asOfTimestamp): bool
     {
@@ -237,16 +240,26 @@ final class InvestmentPayloadBuilder
     }
 
     /**
-     * The most recent timestamp any pair of this item has a history row
-     * for — poe.ninja's ISO 8601 UTC timestamps sort correctly as plain
-     * strings, so no date parsing is needed. Null only when every pair's
-     * history is completely empty.
+     * The most recent date any pair of this item has a *real* (non-zero-
+     * volume) trade on — poe.ninja's ISO 8601 UTC timestamps sort correctly
+     * as plain strings, so no date parsing is needed. Deliberately ignores
+     * zero-volume rows entirely, even though they're often a pair's own
+     * most recent row (a day nobody happened to trade it isn't the same as
+     * the pair going stale) — using the single latest row regardless of
+     * volume would let one illiquid day poison every pair's freshness check
+     * at once, wrongly treating a perfectly current item (last real trade
+     * yesterday, same as every other pair) as if it had gone stale, since
+     * *no* pair would ever match a today-but-zero-volume "freshest" row.
+     * Null only when every pair's history has no real-volume row at all.
      */
-    private static function latestHistoryTimestamp(array $pairs): ?string
+    private static function latestRealTradeTimestamp(array $pairs): ?string
     {
         $latest = null;
         foreach ($pairs as $pair) {
             foreach ($pair['history'] as $row) {
+                if (($row['volumePrimaryValue'] ?? 0) <= 0) {
+                    continue;
+                }
                 $timestamp = $row['timestamp'] ?? null;
                 if ($timestamp !== null && ($latest === null || $timestamp > $latest)) {
                     $latest = $timestamp;

@@ -512,14 +512,14 @@ function MarketOverview() {
                     : "league-banner-started-dot"
                 }
               />
-              <span className="league-banner-started-text">
+              <span>
                 {leagueHasStarted
                   ? `Started ${formatDate(currentLeague.startDate)}`
                   : `Starts ${formatDate(currentLeague.startDate)} (in ${formatTimeUntil(currentLeague.startDate)})`}
               </span>
             </p>
             <p className="league-banner-started">
-              <span className="league-banner-started-text">
+              <span>
                 Day {todayDayOfLeague}
               </span>
             </p>

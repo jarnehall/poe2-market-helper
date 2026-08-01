@@ -28,7 +28,6 @@ function LeagueBadges() {
           >
             <span className="league-filter-badge-dot" />
             <span
-              className="league-filter-badge-name"
               onMouseEnter={() => setHoveredLeagueId(league.id)}
               onMouseLeave={() => setHoveredLeagueId(null)}
             >

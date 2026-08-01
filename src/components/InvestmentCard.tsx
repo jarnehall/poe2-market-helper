@@ -97,7 +97,9 @@ function InvestmentCard({
           alt={investment.item.name}
         />
         <div className="best-investment-info">
-          <span className="best-investment-name">{investment.item.name}</span>
+          <Tooltip text={investment.item.name}>
+            <span className="best-investment-name">{investment.item.name}</span>
+          </Tooltip>
         </div>
       </div>
       <InvestmentTrend
@@ -208,9 +210,7 @@ function InvestmentCard({
                       style={{ "--league-color": league?.color } as CSSProperties}
                     >
                       <span className="best-investment-change-breakdown-dot" />
-                      <span className="best-investment-change-breakdown-text">
-                        {formatPercentChange(percentChange)}
-                      </span>
+                      <span>{formatPercentChange(percentChange)}</span>
                     </span>
                   </Tooltip>
                 );

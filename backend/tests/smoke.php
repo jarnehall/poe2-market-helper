@@ -733,6 +733,64 @@ check(
 
 @unlink($staleRankedCacheFile);
 
+// --- augmentWithLiveLeague must NOT treat an ordinary quiet day (nobody ---
+// --- traded, on *any* pair) as staleness — reproduces the real "Zarokh's ---
+// Reliquary Key" bug report: the ranked pair's own latest row happened to be
+// a genuine zero-volume day (poe.ninja still reports the day, just with no
+// trades), and since no *other* pair had anything more recent either, the
+// whole item was wrongly dropped as "nothing has current data" even though
+// its previous day had plenty of real volume, same as every other pair.
+
+$quietTodayRow = ['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 120, 'volumePrimaryValue' => 0];
+$realYesterdayRow = ['timestamp' => '2026-01-01T00:00:00Z', 'rate' => 118, 'volumePrimaryValue' => 40];
+
+$quietDayEntry = json_decode(json_encode([
+    'item' => ['id' => 'against-the-darkness', 'name' => 'Zarokh\'s Reliquary Key', 'image' => '/x.png', 'category' => 'Fragments', 'detailsId' => 'zarokhs-reliquary-key'],
+    'pairs' => [
+        // divine's own latest row (today) is a genuine zero-volume lull —
+        // not a brand-new "no real trades yet" pair, just a quiet day.
+        ['id' => 'divine', 'rate' => 120, 'volumePrimaryValue' => 0, 'history' => [$quietTodayRow, $realYesterdayRow]],
+        // No other pair has anything more recent than yesterday either —
+        // there's simply nothing fresher to unfavorably compare divine to.
+        ['id' => 'exalted', 'rate' => 1, 'volumePrimaryValue' => 0, 'history' => [['timestamp' => '2025-06-17T00:00:00Z', 'rate' => 1000, 'volumePrimaryValue' => 0]]],
+    ],
+    'core' => ['items' => [], 'rates' => [], 'primary' => 'chaos', 'secondary' => 'divine'],
+]), true);
+
+$quietDayCacheFile = sys_get_temp_dir() . '/poe2-market-guide-smoke-quiet-day-cache-' . uniqid() . '.json';
+file_put_contents($quietDayCacheFile, json_encode([
+    'zarokhs-reliquary-key' => ['fetchedAt' => time(), 'entry' => $quietDayEntry],
+]));
+
+$quietDayClient = new PoeNinjaClient('Does Not Matter — served from cache', $quietDayCacheFile, 'https://example.invalid/details', []);
+$quietDayBuilder = new InvestmentPayloadBuilder($quietDayClient, [
+    'id' => 'live-league',
+    'name' => 'Live League',
+    'startDate' => '2026-01-01T00:00:00Z',
+]);
+
+$quietDayInvestment = [
+    'item' => ['id' => 'against-the-darkness', 'name' => 'Zarokh\'s Reliquary Key', 'image' => '/x.png', 'category' => 'Fragments', 'detailsId' => 'zarokhs-reliquary-key'],
+    'pairId' => 'divine',
+    'pairName' => 'Divine Orb',
+    'pairImage' => null,
+    'percentChange' => 13.0,
+    'leagueChanges' => [['league' => $staticLeague, 'percentChange' => 13.0]],
+    'leagueHistories' => [['league' => $staticLeague, 'history' => [$realYesterdayRow]]],
+    'pairs' => [
+        ['pairId' => 'divine', 'percentChange' => 13.0, 'leagueHistories' => [['league' => $staticLeague, 'history' => [$realYesterdayRow]]]],
+    ],
+];
+
+$quietDayResult = $quietDayBuilder->augmentWithLiveLeague([$quietDayInvestment], ['live-league'], 2, 1);
+
+check(
+    count($quietDayResult) === 1 && ($quietDayResult[0]['pairId'] ?? null) === 'divine',
+    'a pair whose only recent row is a genuine zero-volume day is NOT treated as stale when no other pair of the item has anything more recent either — an ordinary quiet day, not staleness',
+);
+
+@unlink($quietDayCacheFile);
+
 // --- InvestmentPayloadBuilder::resolveRankedInvestments backfills past ---
 // --- dropped items so the response still has $count investments (as long ---
 // --- as the ranked pool has enough candidates left), instead of silently ---

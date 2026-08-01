@@ -7,8 +7,11 @@ import { getImageUrl } from "../lib/marketData";
 import type { HistoryRow, LeagueHistoryRows, LeagueMeta } from "../types";
 
 const WIDTH = 160;
-const HEIGHT = 50;
-const PADDING = 3;
+// A little taller than the old 50 (was a very flat 3.2:1) so a trend's rises
+// and falls read more clearly at a glance, without the chart becoming so
+// tall it dominates the rest of the card.
+const HEIGHT = 60;
+const PADDING = 4;
 const PADDING_LEFT = 16;
 
 interface HoveredPoint {
@@ -186,6 +189,17 @@ function InvestmentTrend({
             </g>
           ))}
         </g>
+        {/* Ties the highlighted "current day" points below back to the
+            actual day they're on at a glance, rather than leaving it to be
+            inferred purely from where the highlighted dots happen to land —
+            drawn before the data lines/points so it sits behind them. */}
+        <line
+          className="investment-trend-today-line"
+          x1={xForDay(currentDayOfLeague)}
+          x2={xForDay(currentDayOfLeague)}
+          y1={PADDING}
+          y2={HEIGHT - PADDING}
+        />
         {orderedLeagueRows.map(({ league, rows }) => {
           const points = rows.map((row) => ({
             x: xForDay(row.dayOfLeague),
