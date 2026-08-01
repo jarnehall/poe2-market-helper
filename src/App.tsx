@@ -6,7 +6,6 @@ import { GameProvider, isGame, useGame } from './context/GameContext'
 import { LeagueProvider } from './context/LeagueContext'
 import { MetaProvider } from './context/MetaContext'
 import { fetchCurrentLeagues } from './lib/api'
-import { getStoredString } from './lib/storage'
 import MarketOverview from './pages/MarketOverview'
 import type { Game } from './types'
 import './App.css'
@@ -51,8 +50,7 @@ function GameRoute() {
 // "/" itself isn't a real view — it redirects to whichever game's current
 // league started most recently (fetched fresh every visit, since which
 // game that is changes over time as new leagues launch). Falls back to
-// whichever game was last viewed (localStorage) if the fetch fails, or
-// POE2 if there's no stored value either.
+// POE2 if that fetch fails.
 function DefaultGameRedirect() {
   const [game, setGame] = useState<Game | null>(null)
 
@@ -66,8 +64,7 @@ function DefaultGameRedirect() {
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
-        const stored = getStoredString('game', DEFAULT_GAME)
-        setGame(isGame(stored) ? stored : DEFAULT_GAME)
+        setGame(DEFAULT_GAME)
       })
     return () => controller.abort()
   }, [])

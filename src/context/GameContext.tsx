@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getHeaderImage } from '../lib/marketData'
-import { setStoredString } from '../lib/storage'
 import type { Game } from '../types'
 
 export function isGame(value: string | null | undefined): value is Game {
@@ -18,7 +17,7 @@ const GameContext = createContext<GameContextValue | null>(null)
 
 // Keep in sync with index.html's own <title> — there's no single shared
 // source for it, since that static tag is what shows before this ever runs.
-const BASE_TITLE = "Jarnehall's Market Helper"
+const BASE_TITLE = 'Chaos Theory'
 
 // `game` comes from the /:game route param (see App.tsx) rather than being
 // owned as its own state here — this provider just exposes it plus a
@@ -30,10 +29,6 @@ const BASE_TITLE = "Jarnehall's Market Helper"
 export function GameProvider({ game, children }: { game: Game; children: ReactNode }) {
   const navigate = useNavigate()
 
-  // Remembered so a bare "/" visit later can redirect back to whichever
-  // game was last viewed, instead of always defaulting to POE2.
-  useEffect(() => setStoredString('game', game), [game])
-
   // Rebuilt from BASE_TITLE every time (not appended to the existing
   // document.title) so switching games repeatedly can never stack up
   // multiple " | POE1" suffixes — this effect doesn't remount alongside
@@ -42,12 +37,14 @@ export function GameProvider({ game, children }: { game: Game; children: ReactNo
     document.title = `${BASE_TITLE} | ${game.toUpperCase()}`
   }, [game])
 
-  // POE1's favicon becomes its own header icon (Chaos Orb) so the browser
-  // tab matches what's shown in-app; POE2 keeps the static default
-  // (index.html's own /favicon.png), left untouched.
+  // The favicon always matches whichever game's header icon is showing
+  // (Chaos Orb for both, per their own per-realm asset — see
+  // HEADER_IMAGES in marketData.ts) rather than index.html's static
+  // /favicon.png default, which only ever shows for the instant before
+  // this first runs.
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-    if (link) link.href = game === 'poe1' ? getHeaderImage('poe1') : '/favicon.png'
+    if (link) link.href = getHeaderImage(game)
   }, [game])
 
   const setGame = (next: Game) => navigate(`/${next}`, { replace: true })

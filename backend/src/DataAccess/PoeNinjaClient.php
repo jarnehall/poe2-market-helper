@@ -37,6 +37,8 @@ final class PoeNinjaClient
     // the start of every call, so a fresh PoeNinjaClient per HTTP request
     // (see public/index.php) never carries over a previous request's result.
     private array $lastFailedItemIds = [];
+    /** @var array<string, string> itemId => the exact poe.ninja request URL that failed */
+    private array $lastFailedItemUrls = [];
     private int $lastAttemptedCount = 0;
 
     /** @param array<string, string> $typeByCategory see config/poe-ninja.php */
@@ -54,6 +56,12 @@ final class PoeNinjaClient
         return $this->lastFailedItemIds;
     }
 
+    /** Same items as getLastFailedItemIds(), each mapped to the exact poe.ninja URL that failed — for surfacing "what exactly didn't work" somewhere (e.g. a status tooltip), not just the count. */
+    public function getLastFailedItemUrls(): array
+    {
+        return $this->lastFailedItemUrls;
+    }
+
     /** How many items actually required a fresh network fetch (not served from a still-fresh cache entry) on the last getEntries() call. */
     public function getLastAttemptedCount(): int
     {
@@ -68,6 +76,7 @@ final class PoeNinjaClient
     public function getEntries(array $items): array
     {
         $this->lastFailedItemIds = [];
+        $this->lastFailedItemUrls = [];
         $this->lastAttemptedCount = 0;
 
         $cache = $this->readCache();
@@ -130,6 +139,7 @@ final class PoeNinjaClient
     {
         $multi = curl_multi_init();
         $handles = [];
+        $urls = [];
 
         foreach ($itemIdToCategory as $itemId => $category) {
             $type = $this->typeByCategory[$category] ?? $category;
@@ -138,6 +148,7 @@ final class PoeNinjaClient
                 'type' => $type,
                 'id' => $itemId,
             ]);
+            $urls[$itemId] = $url;
 
             $handle = curl_init($url);
             curl_setopt_array($handle, [
@@ -177,11 +188,13 @@ final class PoeNinjaClient
             // are freed automatically), and PHP 8.5 deprecates calling it.
 
             if ($error !== '' || $statusCode !== 200 || $body === null || $body === '') {
+                $this->lastFailedItemUrls[$itemId] = $urls[$itemId];
                 continue;
             }
 
             $decoded = json_decode($body, true);
             if (!is_array($decoded) || !isset($decoded['item'], $decoded['pairs'], $decoded['core'])) {
+                $this->lastFailedItemUrls[$itemId] = $urls[$itemId];
                 continue;
             }
 

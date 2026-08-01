@@ -7,7 +7,7 @@
 // with real dated rate history) — poe.ninja's own `details` endpoint returns
 // that shape directly, no reshaping needed.
 //
-// Usage: node scripts/import-poe-ninja-snapshot.mjs <poe1|poe2> <leagueFolder> <leagueName> <category>
+// Usage: node scripts/import-poe-ninja-snapshot.mjs <poe1|poe2> <leagueFolder> <leagueName> <category> [itemListLeagueName]
 //   node scripts/import-poe-ninja-snapshot.mjs poe1 mirage Mirage Currency
 // <leagueFolder> is the on-disk slug (data/<game>/<leagueFolder>/..., matches
 // leagues.php's 'folder'/'id'); <leagueName> is poe.ninja's own league query
@@ -20,6 +20,16 @@
 // per item, capped at CONCURRENCY at a time so this doesn't hammer poe.ninja.
 // Mirrors backend/config/poe-ninja.php's per-game URL/type-override config —
 // keep the two in sync if either changes.
+//
+// [itemListLeagueName] optionally sources the *item list* (the overview
+// call only) from a different league than the one details/history get
+// fetched for — e.g. re-ingesting an old completed league's Currency using
+// the current live league's item list, since poe.ninja's own per-league
+// item sets drift (some items in an old league's overview no longer exist
+// today, and vice versa): `... poe1 mirage Mirage Currency Allflame` still
+// pulls Mirage's own historical rates/history for each item, just enumerated
+// from Allflame's current item list instead of Mirage's own (narrower/wider,
+// whichever it happens to be) list at ingestion time.
 
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -35,7 +45,27 @@ const GAME_CONFIG = {
   },
   poe1: {
     baseUrl: "https://poe.ninja/poe1/api/economy/exchange/current",
-    typeByCategory: {},
+    typeByCategory: {
+      Fragments: "Fragment",
+      Runegrafts: "Runegraft",
+      "Allflame Embers": "AllflameEmber",
+      Tattoos: "Tattoo",
+      Omens: "Omen",
+      "Divination Cards": "DivinationCard",
+      Artifacts: "Artifact",
+      Oils: "Oil",
+    },
+  },
+};
+
+// poe.ninja's exchange API returns every Divination Cards entry with no
+// `item.image` at all (unlike every other category) — filled in here with
+// the game's own generic card-back icon rather than leaving it broken.
+// Relative to IMAGE_BASE_URL in src/lib/marketData.ts, same as every other
+// item's own `image` path.
+const FALLBACK_IMAGE_BY_CATEGORY = {
+  poe1: {
+    "Divination Cards": "/image/Art/2DItems/Divination/InventoryIcon.png",
   },
 };
 
@@ -73,10 +103,10 @@ async function fetchWithPool(items, worker, concurrency) {
 }
 
 async function main() {
-  const [game, leagueFolder, leagueName, category] = process.argv.slice(2);
+  const [game, leagueFolder, leagueName, category, itemListLeagueName = leagueName] = process.argv.slice(2);
   if (!game || !leagueFolder || !leagueName || !category || !GAME_CONFIG[game]) {
     console.error(
-      "Usage: node scripts/import-poe-ninja-snapshot.mjs <poe1|poe2> <leagueFolder> <leagueName> <category>",
+      "Usage: node scripts/import-poe-ninja-snapshot.mjs <poe1|poe2> <leagueFolder> <leagueName> <category> [itemListLeagueName]",
     );
     process.exit(1);
   }
@@ -84,12 +114,14 @@ async function main() {
   const { baseUrl, typeByCategory } = GAME_CONFIG[game];
   const type = typeByCategory[category] ?? category;
 
-  console.log(`Fetching item list: ${category} in ${leagueName} (${game})...`);
+  console.log(`Fetching item list: ${category} in ${itemListLeagueName} (${game})...`);
   const overview = await fetchJson(
-    `${baseUrl}/overview?${new URLSearchParams({ league: leagueName, type })}`,
+    `${baseUrl}/overview?${new URLSearchParams({ league: itemListLeagueName, type })}`,
   );
   const itemIds = overview.items.map((item) => item.id);
-  console.log(`Found ${itemIds.length} items. Fetching details (concurrency ${CONCURRENCY})...`);
+  console.log(
+    `Found ${itemIds.length} items. Fetching details from ${leagueName} (concurrency ${CONCURRENCY})...`,
+  );
 
   const results = await fetchWithPool(
     itemIds,
@@ -97,11 +129,17 @@ async function main() {
     CONCURRENCY,
   );
 
+  const fallbackImage = FALLBACK_IMAGE_BY_CATEGORY[game]?.[category];
+
   const entries = [];
   const failed = [];
   results.forEach((result, index) => {
     if (result.ok) {
-      entries.push(result.value);
+      const entry = result.value;
+      if (fallbackImage && !entry.item.image) {
+        entry.item.image = fallbackImage;
+      }
+      entries.push(entry);
     } else {
       failed.push({ itemId: itemIds[index], error: String(result.error) });
     }

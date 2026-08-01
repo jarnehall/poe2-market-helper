@@ -18,9 +18,9 @@ interface LeagueContextValue {
   selectedLeagues: LeagueMeta[]
   isLeagueSelected: (leagueId: string) => boolean
   toggleLeague: (leagueId: string) => void
-  // True when the selection already matches the single default league —
-  // lets a "Reset all filters" control disable itself rather than being a
-  // no-op.
+  // True when the selection already matches the default (every selectable
+  // league) — lets a "Reset all filters" control disable itself rather
+  // than being a no-op.
   isDefaultSelection: boolean
   resetLeagues: () => void
   // Which league's badge (if any) is currently hovered — purely ephemeral
@@ -43,10 +43,15 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
   const selectableLeagues = useMemo(() => leagues.filter((league) => !league.isLive), [leagues])
   const liveLeague = useMemo(() => leagues.find((league) => league.isLive) ?? null, [leagues])
 
-  const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>(() => {
-    const defaultLeague = selectableLeagues[0] ?? leagues[0]
-    const defaultIds = defaultLeague ? [defaultLeague.id] : []
+  // Every selectable league, not just the first — falls back to the live
+  // league alone in the (real-world impossible today, but not type-
+  // guaranteed) case where a game has no static leagues at all yet.
+  const defaultLeagueIds = useMemo(() => {
+    if (selectableLeagues.length > 0) return selectableLeagues.map((league) => league.id)
+    return leagues[0] ? [leagues[0].id] : []
+  }, [selectableLeagues, leagues])
 
+  const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>(() => {
     // A ?l= from a shared link always wins over both localStorage and the
     // default, same as every other filter — see FiltersContext.
     const urlLeagues = getUrlParam(LEAGUES_URL_KEY)
@@ -54,15 +59,15 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
       const fromUrl = splitUrlList(urlLeagues).filter((id) =>
         selectableLeagues.some((league) => league.id === id),
       )
-      return fromUrl.length > 0 ? fromUrl : defaultIds
+      return fromUrl.length > 0 ? fromUrl : defaultLeagueIds
     }
 
-    const stored = getStoredStringArray(`${game}:selectedLeagueIds`, defaultIds)
+    const stored = getStoredStringArray(`${game}:selectedLeagueIds`, defaultLeagueIds)
     // Drops the live league id out of anything restored from a previous
     // session (from before it stopped being individually selectable), so a
     // stale localStorage value can't leave it as the sole "selected" league.
     const sanitized = stored.filter((id) => selectableLeagues.some((league) => league.id === id))
-    return sanitized.length > 0 ? sanitized : defaultIds
+    return sanitized.length > 0 ? sanitized : defaultLeagueIds
   })
 
   useEffect(
@@ -71,15 +76,13 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
   )
 
   // Mirrors the URL the same way FiltersContext does — removed entirely
-  // when it matches the default (single) league rather than the current
-  // selection, so the URL only carries what's actually non-default.
+  // when it matches the default (every selectable league) rather than the
+  // current selection, so the URL only carries what's actually non-default.
   useEffect(() => {
-    const defaultLeague = selectableLeagues[0] ?? leagues[0]
-    const defaultIds = defaultLeague ? [defaultLeague.id] : []
     setUrlParams({
-      [LEAGUES_URL_KEY]: sameElements(selectedLeagueIds, defaultIds) ? null : selectedLeagueIds.join(','),
+      [LEAGUES_URL_KEY]: sameElements(selectedLeagueIds, defaultLeagueIds) ? null : selectedLeagueIds.join(','),
     })
-  }, [selectedLeagueIds, selectableLeagues, leagues])
+  }, [selectedLeagueIds, defaultLeagueIds])
 
   const toggleLeague = (leagueId: string) => {
     setSelectedLeagueIds((current) => {
@@ -96,11 +99,6 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
     () => leagues.filter((league) => selectedLeagueIds.includes(league.id)),
     [leagues, selectedLeagueIds],
   )
-
-  const defaultLeagueIds = useMemo(() => {
-    const defaultLeague = selectableLeagues[0] ?? leagues[0]
-    return defaultLeague ? [defaultLeague.id] : []
-  }, [selectableLeagues, leagues])
 
   const isDefaultSelection = sameElements(selectedLeagueIds, defaultLeagueIds)
   const resetLeagues = () => setSelectedLeagueIds(defaultLeagueIds)

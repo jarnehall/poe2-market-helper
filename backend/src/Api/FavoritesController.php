@@ -70,7 +70,7 @@ final class FavoritesController
         if ($pins === []) {
             JsonResponse::send([
                 'investments' => [],
-                'poeNinjaStatus' => ['checked' => false, 'attemptedCount' => 0, 'failedItemIds' => []],
+                'poeNinjaStatus' => ['checked' => false, 'attemptedCount' => 0, 'failedItemIds' => [], 'failedItems' => []],
             ]);
         }
 
@@ -80,6 +80,9 @@ final class FavoritesController
         $investments = $this->payloadBuilder->attachAlternatePairs($investments, $leagues, $currentDayOfLeague, $daysForward);
 
         $liveDataChecked = $this->payloadBuilder->shouldCheckLiveLeague($investments, $leagueIds);
+        // Kept around (pre-drop) so poeNinjaStatus() below can still look up
+        // a dropped item's own name/id for its failedItems detail list.
+        $preDropInvestments = $investments;
         $investments = $this->payloadBuilder->augmentWithLiveLeague($investments, $leagueIds);
 
         JsonResponse::send([
@@ -87,7 +90,7 @@ final class FavoritesController
                 fn(array $investment): array => $this->payloadBuilder->toPayload($investment, $leagues, $currentDayOfLeague, $daysBack, $daysForward),
                 $investments,
             ),
-            'poeNinjaStatus' => $this->payloadBuilder->poeNinjaStatus($liveDataChecked),
+            'poeNinjaStatus' => $this->payloadBuilder->poeNinjaStatus($liveDataChecked, $preDropInvestments),
         ]);
     }
 

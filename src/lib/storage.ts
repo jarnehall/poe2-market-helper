@@ -1,39 +1,37 @@
-const STORAGE_PREFIX = 'poe2-market-guide:'
-
 export function getStoredNumber(key: string, fallback: number): number {
-  const raw = localStorage.getItem(STORAGE_PREFIX + key)
+  const raw = localStorage.getItem(key)
   if (raw === null) return fallback
   const value = Number(raw)
   return Number.isFinite(value) ? value : fallback
 }
 
 export function setStoredNumber(key: string, value: number): void {
-  localStorage.setItem(STORAGE_PREFIX + key, String(value))
+  localStorage.setItem(key, String(value))
 }
 
 export function getStoredString(key: string, fallback: string): string {
-  return localStorage.getItem(STORAGE_PREFIX + key) ?? fallback
+  return localStorage.getItem(key) ?? fallback
 }
 
 export function setStoredString(key: string, value: string): void {
-  localStorage.setItem(STORAGE_PREFIX + key, value)
+  localStorage.setItem(key, value)
 }
 
 export function getStoredBoolean(key: string, fallback: boolean): boolean {
-  const raw = localStorage.getItem(STORAGE_PREFIX + key)
+  const raw = localStorage.getItem(key)
   if (raw === null) return fallback
   return raw === 'true'
 }
 
 export function setStoredBoolean(key: string, value: boolean): void {
-  localStorage.setItem(STORAGE_PREFIX + key, String(value))
+  localStorage.setItem(key, String(value))
 }
 
 export function getStoredStringArray(
   key: string,
   fallback: string[],
 ): string[] {
-  const raw = localStorage.getItem(STORAGE_PREFIX + key)
+  const raw = localStorage.getItem(key)
   if (raw === null) return fallback
   try {
     const parsed = JSON.parse(raw)
@@ -47,5 +45,5 @@ export function getStoredStringArray(
 }
 
 export function setStoredStringArray(key: string, value: string[]): void {
-  localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value))
+  localStorage.setItem(key, JSON.stringify(value))
 }

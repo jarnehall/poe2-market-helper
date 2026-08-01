@@ -12,6 +12,7 @@ import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
 import PairCurrencyFilter from "../components/PairCurrencyFilter";
 import ResetFiltersButton from "../components/ResetFiltersButton";
+import Tooltip from "../components/Tooltip";
 import { useFavorites } from "../context/FavoritesContext";
 import { useFilters } from "../context/FiltersContext";
 import { useGame } from "../context/GameContext";
@@ -282,6 +283,10 @@ function MarketOverview() {
   const leagueHasStarted =
     new Date(currentLeague.startDate).getTime() <= Date.now();
   const hasPoeNinjaFailures = (poeNinjaStatus?.failedItemIds.length ?? 0) > 0;
+  // Nothing needed a fresh fetch at all — every item's live-league data
+  // came straight from the on-disk cache (see PoeNinjaClient), so there's
+  // nothing to have "succeeded" or "failed" on this particular reload.
+  const allPoeNinjaServedFromCache = poeNinjaStatus?.checked && poeNinjaStatus.attemptedCount === 0;
 
   // The league's actual current day, independent of whatever day the
   // slider is browsing — same clamped calculation DayOfLeagueSlider uses
@@ -325,10 +330,7 @@ function MarketOverview() {
     <>
       <header className="app-header" ref={headerRef}>
         <div className="app-header-inner">
-          <span
-            className="app-header-title"
-            aria-label="Jarnehall&rsquo;s Market Helper"
-          >
+          <span className="app-header-title" aria-label="Chaos Theory">
             <img
               className="app-header-title-icon"
               src={getHeaderImage(game)}
@@ -336,7 +338,7 @@ function MarketOverview() {
               aria-hidden="true"
             />
             <span className="app-header-title-full" aria-hidden="true">
-              Jarnehall&rsquo;s Market Helper
+              Chaos Theory
             </span>
           </span>
           <div className="app-header-controls">
@@ -422,19 +424,32 @@ function MarketOverview() {
                         {visitorCount} unique visitor
                         {visitorCount === 1 ? "" : "s"} since last deploy
                       </p>
-                      {poeNinjaStatus?.checked && (
-                        <p
-                          className={
-                            hasPoeNinjaFailures
-                              ? "settings-info-line settings-info-line-warning"
-                              : "settings-info-line"
-                          }
-                        >
-                          {hasPoeNinjaFailures
-                            ? `${poeNinjaStatus.failedItemIds.length} of ${poeNinjaStatus.attemptedCount} poe.ninja request${poeNinjaStatus.attemptedCount === 1 ? "" : "s"} failed on the last reload`
-                            : "All poe.ninja requests succeeded on the last reload"}
-                        </p>
-                      )}
+                      {poeNinjaStatus?.checked &&
+                        (hasPoeNinjaFailures ? (
+                          <Tooltip
+                            tooltipClassName="poe-ninja-failed-tooltip-panel"
+                            text={
+                              <div className="poe-ninja-failed-tooltip">
+                                {poeNinjaStatus.failedItems.map((failedItem) => (
+                                  <div key={failedItem.itemId} className="poe-ninja-failed-tooltip-entry">
+                                    <div className="poe-ninja-failed-tooltip-item-name">{failedItem.itemName}</div>
+                                    <div className="poe-ninja-failed-tooltip-url">{failedItem.url}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            }
+                          >
+                            <p className="settings-info-line settings-info-line-warning">
+                              {`${poeNinjaStatus.failedItemIds.length} of ${poeNinjaStatus.attemptedCount} poe.ninja request${poeNinjaStatus.attemptedCount === 1 ? "" : "s"} failed on the last reload`}
+                            </p>
+                          </Tooltip>
+                        ) : (
+                          <p className="settings-info-line">
+                            {allPoeNinjaServedFromCache
+                              ? "All poe.ninja requests were served from cache"
+                              : "All poe.ninja requests succeeded on the last reload"}
+                          </p>
+                        ))}
                     </div>
                   </div>
                 )}

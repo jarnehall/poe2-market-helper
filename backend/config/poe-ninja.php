@@ -19,7 +19,22 @@ return [
     ],
     'poe1' => [
         'detailsUrl' => 'https://poe.ninja/poe1/api/economy/exchange/current/details',
-        // 'Currency' (POE1's only category so far) needs no override.
-        'typeByCategory' => [],
+        // 'Currency' needs no override; the others do — poe.ninja's own
+        // `type` value for each is the singular of the category name
+        // (Fragment/Runegraft), or its own CamelCase name with the space
+        // removed (AllflameEmber, poe.ninja's actual `item.category` value
+        // for these — see loadFiltered()/loadPinned() in LeagueRepository,
+        // which overwrite it with our own "Allflame Embers" on load anyway,
+        // so this raw value never actually reaches the frontend).
+        'typeByCategory' => [
+            'Fragments' => 'Fragment',
+            'Runegrafts' => 'Runegraft',
+            'Allflame Embers' => 'AllflameEmber',
+            'Tattoos' => 'Tattoo',
+            'Omens' => 'Omen',
+            'Divination Cards' => 'DivinationCard',
+            'Artifacts' => 'Artifact',
+            'Oils' => 'Oil',
+        ],
     ],
 ];

@@ -144,6 +144,12 @@ export interface CatalogItem {
   pairId: string
 }
 
+export interface PoeNinjaFailedItem {
+  itemId: string
+  itemName: string
+  url: string
+}
+
 export interface PoeNinjaStatus {
   // Whether the live league's data was even relevant this request (false
   // when the live league isn't among the requested leagues, or there were
@@ -152,6 +158,10 @@ export interface PoeNinjaStatus {
   checked: boolean
   attemptedCount: number
   failedItemIds: string[]
+  // Same failures as failedItemIds, each with its item name and the exact
+  // poe.ninja URL that failed — enough to show *what* didn't work, not
+  // just how many.
+  failedItems: PoeNinjaFailedItem[]
 }
 
 export interface BestInvestmentsResponse {

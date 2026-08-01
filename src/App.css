@@ -86,7 +86,7 @@
   flex-shrink: 0;
 }
 
-/* Below this, "Jarnehall's Market Helper" alongside the icon and the
+/* Below this, "Chaos Theory" alongside the icon and the
    Leagues/Filters/Settings/Reset row no longer comfortably fits on one
    row (measured: started needing to scroll at 816px — re-measure again if
    more header content gets added) — the title text is simply dropped
@@ -1361,6 +1361,36 @@
   font-weight: 600;
   line-height: 1.4;
   color: var(--text-h);
+}
+
+/* Wider than the default 260px — a list of failed items' names/URLs (see
+   MarketOverview.tsx's poe.ninja status line) needs more room than a short
+   label does, or every URL wraps across many cramped lines. */
+.poe-ninja-failed-tooltip-panel {
+  max-width: 420px;
+}
+
+.poe-ninja-failed-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.poe-ninja-failed-tooltip-entry + .poe-ninja-failed-tooltip-entry {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.poe-ninja-failed-tooltip-item-name {
+  color: var(--text-h);
+}
+
+/* Not bold like the item name above, and long enough (a full poe.ninja URL)
+   that it needs to be able to break anywhere, not just at existing spaces. */
+.poe-ninja-failed-tooltip-url {
+  overflow-wrap: anywhere;
+  font-weight: 400;
+  color: var(--text);
 }
 
 .investment-trend-line {

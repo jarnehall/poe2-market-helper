@@ -22,9 +22,13 @@ interface Anchor {
 // target's layout.
 function Tooltip({
   text,
+  tooltipClassName,
   children,
 }: {
   text?: ReactNode;
+  // Appended alongside "simple-tooltip", for a caller whose content doesn't
+  // fit the default styling (e.g. a list of items instead of a short label).
+  tooltipClassName?: string;
   children: ReactElement<HTMLAttributes<HTMLElement>>;
 }) {
   const [anchor, setAnchor] = useState<Anchor | null>(null);
@@ -85,7 +89,7 @@ function Tooltip({
       {anchor && (
         <div
           ref={tooltipRef}
-          className="simple-tooltip"
+          className={tooltipClassName ? `simple-tooltip ${tooltipClassName}` : "simple-tooltip"}
           role="tooltip"
           style={{ left: anchor.x + offset.x, top: anchor.y + offset.y }}
         >

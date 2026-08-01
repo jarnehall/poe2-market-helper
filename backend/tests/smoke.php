@@ -472,8 +472,10 @@ check(
 );
 
 check(
-    $poe1Repo->listCategories() === ['Currency'],
-    'POE1 starts with exactly one category (Currency) — listCategories() derives this from data/poe1/mirage/*.json alone, not any global/cross-game list',
+    $poe1Repo->listCategories() === [
+        'Allflame Embers', 'Artifacts', 'Currency', 'Divination Cards', 'Fragments', 'Oils', 'Omens', 'Runegrafts', 'Tattoos',
+    ],
+    'POE1 lists exactly its 9 categories — listCategories() derives this from data/poe1/mirage/*.json alone, not any global/cross-game list',
 );
 check(
     $poe1Repo->currentLeagueInfo()['id'] === 'curse-of-the-allflame',
@@ -638,6 +640,12 @@ check(
 check(
     $resolved['poeNinjaStatus']['failedItemIds'] === ['item1-details', 'item3-details'],
     'failedItemIds accumulates across batches too, in the order each genuine failure was actually encountered',
+);
+check(
+    array_map(fn(array $f): string => $f['itemId'], $resolved['poeNinjaStatus']['failedItems']) === ['item1-details', 'item3-details']
+        && array_map(fn(array $f): string => $f['itemName'], $resolved['poeNinjaStatus']['failedItems']) === ['item1', 'item3']
+        && array_map(fn(array $f): bool => str_contains($f['url'], 'example.invalid') && str_contains($f['url'], $f['itemId']), $resolved['poeNinjaStatus']['failedItems']) === [true, true],
+    'failedItems carries each failure\'s item name and the exact poe.ninja request URL that failed, not just its id',
 );
 
 $exhaustedPool = [smokeFixtureInvestment('item1', 40.0), smokeFixtureInvestment('item3', 20.0)];

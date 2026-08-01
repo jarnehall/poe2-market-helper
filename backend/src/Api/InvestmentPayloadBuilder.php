@@ -164,7 +164,7 @@ final class InvestmentPayloadBuilder
      * (as a single augmentWithLiveLeague call's caller normally would) would
      * silently under-report every earlier batch's own fetches.
      *
-     * @return array{investments: array, poeNinjaStatus: array{checked: bool, attemptedCount: int, failedItemIds: array<int, string>}}
+     * @return array{investments: array, poeNinjaStatus: array{checked: bool, attemptedCount: int, failedItemIds: array<int, string>, failedItems: array<int, array{itemId: string, itemName: string, url: string}>}}
      */
     public function resolveRankedInvestments(
         array $rankedPool,
@@ -179,6 +179,7 @@ final class InvestmentPayloadBuilder
         $investments = [];
         $attemptedTotal = 0;
         $failedIdsTotal = [];
+        $failedItemsTotal = [];
         $offset = 0;
 
         while (count($investments) < $count && $offset < count($rankedPool)) {
@@ -188,15 +189,19 @@ final class InvestmentPayloadBuilder
             }
             $offset += count($batch);
 
-            $batch = $this->attachAlternatePairs($batch, $leagues, $currentDayOfLeague, $daysForward);
-            $batch = $this->augmentWithLiveLeague($batch, $leagueIds);
+            // Kept around (pre-drop) so failedItemDetails() below can still
+            // look up a dropped item's own name/id — augmentWithLiveLeague's
+            // own return value no longer has it.
+            $preDropBatch = $this->attachAlternatePairs($batch, $leagues, $currentDayOfLeague, $daysForward);
+            $survivedBatch = $this->augmentWithLiveLeague($preDropBatch, $leagueIds);
 
             if ($checked) {
                 $attemptedTotal += $this->poeNinjaClient->getLastAttemptedCount();
                 $failedIdsTotal = [...$failedIdsTotal, ...$this->poeNinjaClient->getLastFailedItemIds()];
+                $failedItemsTotal = [...$failedItemsTotal, ...$this->failedItemDetails($preDropBatch)];
             }
 
-            $investments = [...$investments, ...$batch];
+            $investments = [...$investments, ...$survivedBatch];
         }
 
         return [
@@ -205,8 +210,45 @@ final class InvestmentPayloadBuilder
                 'checked' => $checked,
                 'attemptedCount' => $attemptedTotal,
                 'failedItemIds' => $failedIdsTotal,
+                'failedItems' => $failedItemsTotal,
             ],
         ];
+    }
+
+    /**
+     * Cross-references the last augmentWithLiveLeague call's failed item ids
+     * (see PoeNinjaClient::getLastFailedItemIds/getLastFailedItemUrls)
+     * against $investments to attach each failure's item name and the exact
+     * poe.ninja URL that failed — enough to show *what* didn't work
+     * (e.g. in a status tooltip), not just how many. $investments must be
+     * the same batch (pre-drop) augmentWithLiveLeague was just called with:
+     * a dropped item's name isn't recoverable from that call's own result,
+     * since dropping is the whole point of augmentWithLiveLeague.
+     *
+     * @return array<int, array{itemId: string, itemName: string, url: string}>
+     */
+    private function failedItemDetails(array $investments): array
+    {
+        $failedIds = $this->poeNinjaClient->getLastFailedItemIds();
+        if ($failedIds === []) {
+            return [];
+        }
+
+        $urls = $this->poeNinjaClient->getLastFailedItemUrls();
+        $details = [];
+
+        foreach ($investments as $investment) {
+            $detailsId = $investment['item']['detailsId'];
+            if (in_array($detailsId, $failedIds, true)) {
+                $details[] = [
+                    'itemId' => $detailsId,
+                    'itemName' => $investment['item']['name'],
+                    'url' => $urls[$detailsId] ?? '',
+                ];
+            }
+        }
+
+        return $details;
     }
 
     private static function findPairById(array $pairs, string $pairId): ?array
@@ -280,12 +322,14 @@ final class InvestmentPayloadBuilder
         );
     }
 
-    public function poeNinjaStatus(bool $checked): array
+    /** @param array $investments the same (pre-drop) batch just passed to augmentWithLiveLeague — see failedItemDetails() */
+    public function poeNinjaStatus(bool $checked, array $investments = []): array
     {
         return [
             'checked' => $checked,
             'attemptedCount' => $checked ? $this->poeNinjaClient->getLastAttemptedCount() : 0,
             'failedItemIds' => $checked ? $this->poeNinjaClient->getLastFailedItemIds() : [],
+            'failedItems' => $checked ? $this->failedItemDetails($investments) : [],
         ];
     }
 
