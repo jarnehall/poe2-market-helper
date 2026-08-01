@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { fetchMeta } from '../lib/api'
-import type { Meta } from '../types'
+import type { Game, Meta } from '../types'
 
 const MetaContext = createContext<Meta | null>(null)
 
@@ -14,12 +14,15 @@ type LoadState =
 // everything below this (LeagueProvider, FiltersProvider, the page itself)
 // can assume real league/category/pair-currency lists and filter bounds are
 // already available, instead of null-checking a "not loaded yet" state.
-export function MetaProvider({ children }: { children: ReactNode }) {
+// Rendered with key={game} by App.tsx, so a game switch remounts this (and
+// everything nested inside) from scratch rather than needing this effect to
+// handle re-fetching into an already-populated tree.
+export function MetaProvider({ game, children }: { game: Game; children: ReactNode }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
 
   useEffect(() => {
     const controller = new AbortController()
-    fetchMeta(controller.signal)
+    fetchMeta(game, controller.signal)
       .then((meta) => setState({ status: 'success', meta }))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -29,7 +32,7 @@ export function MetaProvider({ children }: { children: ReactNode }) {
         })
       })
     return () => controller.abort()
-  }, [])
+  }, [game])
 
   if (state.status === 'loading') {
     return <div className="loading-spinner" role="status" aria-label="Loading" />

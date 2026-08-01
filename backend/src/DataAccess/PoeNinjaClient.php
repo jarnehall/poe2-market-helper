@@ -26,19 +26,9 @@ namespace App\DataAccess;
  */
 final class PoeNinjaClient
 {
-    private const DETAILS_URL = 'https://poe.ninja/poe2/api/economy/exchange/current/details';
     private const USER_AGENT = 'poe2-market-guide/1.0 (personal project; +https://poe2.jarnehall.se/)';
     private const TIMEOUT_SECONDS = 10;
     private const CACHE_TTL_SECONDS = 2 * 60 * 60;
-
-    // poe.ninja's `type` query param isn't always just the category name —
-    // this mirrors the (separately-maintained) POE_NINJA_CATEGORY_SLUGS
-    // override in the old frontend code, but for the API param rather than
-    // the human economy-page URL slug.
-    private const TYPE_BY_CATEGORY = [
-        'Lineage Gems' => 'LineageSupportGems',
-        'Omens' => 'Ritual',
-    ];
 
     // Populated by the most recent getEntries() call — lets the caller
     // report "did any of THIS request's poe.ninja fetches fail" (e.g. for a
@@ -49,9 +39,12 @@ final class PoeNinjaClient
     private array $lastFailedItemIds = [];
     private int $lastAttemptedCount = 0;
 
+    /** @param array<string, string> $typeByCategory see config/poe-ninja.php */
     public function __construct(
         private readonly string $leagueName,
         private readonly string $cacheFile,
+        private readonly string $detailsUrl,
+        private readonly array $typeByCategory = [],
     ) {
     }
 
@@ -139,8 +132,8 @@ final class PoeNinjaClient
         $handles = [];
 
         foreach ($itemIdToCategory as $itemId => $category) {
-            $type = self::TYPE_BY_CATEGORY[$category] ?? $category;
-            $url = self::DETAILS_URL . '?' . http_build_query([
+            $type = $this->typeByCategory[$category] ?? $category;
+            $url = $this->detailsUrl . '?' . http_build_query([
                 'league' => $this->leagueName,
                 'type' => $type,
                 'id' => $itemId,

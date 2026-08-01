@@ -40,7 +40,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
+  /* Always one row: the title never shrinks (flex-shrink: 0 below) or
+     wraps below the controls — .app-header-controls does all the giving,
+     shrinking and then scrolling horizontally once it can't shrink
+     further (see its own rule). */
+  flex-wrap: nowrap;
   gap: 16px;
 }
 
@@ -56,6 +60,25 @@
   white-space: nowrap;
 }
 
+/* Groups GameSwitcher + LeagueFilter (Leagues/Filters/Settings/Reset) as one
+   flex item, so .app-header-inner's space-between only ever splits the
+   title from this whole control row, instead of centering GameSwitcher
+   between them as a third top-level item. flex-wrap: nowrap + overflow-x:
+   auto (rather than wrap) means that if these don't all fit on one row —
+   even after the responsive hiding below has already done what it can —
+   this scrolls horizontally instead of dropping onto a second row.
+   overflow other than visible is also what lets this flex item actually
+   shrink below its content's width in the first place (the flex spec's
+   "automatic minimum size" is 0 only when overflow isn't visible); without
+   it, .app-header-inner would just overflow the viewport instead. */
+.app-header-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 6px;
+}
+
 .app-header-title-icon {
   height: 32px;
   width: 32px;
@@ -64,10 +87,13 @@
 }
 
 /* Below this, "Jarnehall's Market Helper" alongside the icon and the
-   Leagues/Filters/Settings/Reset row no longer fits on one row (measured:
-   wraps starting at 816px — re-measure again if more header content gets
-   added) — the title text is simply dropped rather than abbreviated, since
-   the icon alone is already enough to identify the app in a slim header. */
+   Leagues/Filters/Settings/Reset row no longer comfortably fits on one
+   row (measured: started needing to scroll at 816px — re-measure again if
+   more header content gets added) — the title text is simply dropped
+   rather than abbreviated, since the icon alone (always kept, see
+   .app-header-inner's nowrap) is already enough to identify the app in a
+   slim header, and dropping the text means less of the controls row needs
+   to scroll to reach. */
 @media (max-width: 840px) {
   .app-header-title-full {
     display: none;
@@ -75,27 +101,12 @@
 }
 
 /* Below this, the icon-only title alongside the button row (with the
-   Reset button's own label) no longer fits (measured: wraps starting at
-   515px) — dropping "Reset all filters" to just its icon (aria-label still
-   carries the meaning for screen readers) avoids it wrapping onto its own
-   separate row underneath the other three. */
+   Reset button's own label) starts needing to scroll further still
+   (measured: at 515px) — dropping "Reset all filters" to just its icon
+   (aria-label still carries the meaning for screen readers) keeps more of
+   the row in view before a scroll is needed. */
 @media (max-width: 540px) {
   .reset-filters-button-label {
-    display: none;
-  }
-}
-
-/* Below this, even the icon-only title alongside the fully-shrunk button
-   row (Leagues/Filters/Settings text + icon-only Reset) no longer fits
-   (measured: wraps starting at 369px) — dropping the Divine Orb icon too
-   leaves just the four controls, which fit on their own down to that
-   point; only genuinely tiny screens still wrap to a second row. Hides the
-   whole .app-header-title span, not just the icon inside it — otherwise
-   the now-empty span still counts as a flex item and keeps its `gap` to
-   the button group, wasting 16px that's otherwise enough on its own to
-   force an unnecessary wrap. */
-@media (max-width: 420px) {
-  .app-header-title {
     display: none;
   }
 }
@@ -139,6 +150,13 @@
   color: var(--text-h);
 }
 
+/* Groups the "Started"/"Day N" pills side by side — plain <p> tags
+   otherwise stack vertically by default. */
+.league-banner-started-group {
+  display: flex;
+  gap: 12px;
+}
+
 /* A small status pill instead of plain text — the dot's color doubles as an
    at-a-glance "is it running yet" signal (gain-green once started, the same
    blue used for other "upcoming/selected" states before that). */
@@ -177,11 +195,16 @@
 
 /* Just the Leagues toggle next to the Filters toggle (passed in as
    `children`) — the selected-league badges used to live in here too (see
-   LeagueBadges, rendered separately below the league banner instead). */
+   LeagueBadges, rendered separately below the league banner instead).
+   nowrap + flex-shrink: 0 (not wrap) so this never breaks its own buttons
+   onto a second line or squishes them — it just keeps its natural width,
+   and .app-header-controls (its parent) scrolls horizontally instead once
+   that width doesn't fit. */
 .league-filter {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
   justify-content: flex-end;
   gap: 6px;
 }
@@ -198,22 +221,55 @@
 .league-filter-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
-  margin-bottom: 12px;
+  gap: 6px 14px;
+  margin-bottom: 14px;
+}
+
+/* Two-button game toggle (POE1/POE2), placed in the header ahead of the
+   Leagues/Filters/Settings/Reset group — a plain grouped pill pair rather
+   than a dropdown, since there are only ever two options. No gap: the two
+   buttons sit flush against each other, squared off on their touching
+   side (below), so they read as one pill split down the middle rather
+   than two separate ones. */
+.game-switcher {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.game-switcher-button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  /* Only the second button's left border draws the divider between them
+     — otherwise the two adjacent 1.5px borders would double up into a
+     visibly thicker seam than the border everywhere else around the pill. */
+  border-right: none;
+  padding-right: 8px;
+}
+
+.game-switcher-button:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: 8px;
 }
 
 /* Pill-button family shared by every filter control (league, category,
    pair currency, the filters toggle itself): same padding, radius, type
    scale, and transition everywhere, so they read as one control set
-   rather than a pile of similar-but-different buttons. */
+   rather than a pile of similar-but-different buttons. min-height keeps
+   them all the same height too — without it, a label-less pill (Reset
+   below 540px, icon only) sizes to its icon's own 13px instead of a text
+   label's line-height and renders a couple pixels shorter than its
+   siblings. 29px is that text-label height (measured), not a guess. */
 .league-filter-toggle-button,
 .league-filter-button,
 .filters-toggle-button,
 .settings-toggle-button,
 .category-filter-button,
 .pair-currency-filter-button,
-.reset-filters-button {
+.reset-filters-button,
+.game-switcher-button {
   padding: 6px 14px;
+  min-height: 29px;
   border-radius: 999px;
   border: 1.5px solid var(--border);
   background: var(--surface);
@@ -236,7 +292,7 @@
   color: var(--text-h);
 }
 
-.league-filter-toggle-button[aria-expanded='true'] {
+.league-filter-toggle-button[aria-expanded="true"] {
   border-color: var(--select);
   color: var(--select);
 }
@@ -251,7 +307,8 @@
 .filters-toggle-button:hover,
 .settings-toggle-button:hover,
 .category-filter-button:hover,
-.pair-currency-filter-button:hover {
+.pair-currency-filter-button:hover,
+.game-switcher-button:hover {
   background: var(--surface-2);
 }
 
@@ -266,10 +323,33 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
+.game-switcher-button {
+  color: var(--text-h);
+}
+
+.game-switcher-button-active {
+  background: var(--select);
+  border-color: var(--select);
+  color: var(--ink);
+}
+
+.game-switcher-button-active:hover {
+  background: var(--select);
+  filter: brightness(1.15);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
 .league-filter-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  /* position: fixed (not absolute) from the start, with no top/left here —
+     useKeepOnScreen computes and sets those inline via JS instead (see its
+     own comment for why: an absolutely-positioned descendant still counts
+     toward an overflow: auto ancestor's scrollable content width — like
+     .app-header-controls, made horizontally scrollable for the mobile
+     menu — even while out of normal document flow, which was shifting the
+     whole header sideways for the instant before that hook swapped it to
+     fixed). Being fixed unconditionally here, not just after the hook
+     runs, means that instant never happens at all. */
+  position: fixed;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -465,9 +545,8 @@
 
 .filters-dropdown,
 .settings-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  /* See .league-filter-dropdown's comment just above — same reasoning. */
+  position: fixed;
   z-index: 30;
   display: flex;
   flex-direction: column;

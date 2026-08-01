@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useFavorites } from "../context/FavoritesContext";
+import { useGame } from "../context/GameContext";
 import { fetchItemsCatalog } from "../lib/api";
 import { getImageUrl } from "../lib/marketData";
 import type { CatalogItem, FavoriteItem } from "../types";
@@ -17,6 +18,7 @@ function toFavorite(item: CatalogItem): FavoriteItem {
 
 function FavoritesSearch() {
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { game } = useGame();
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -30,13 +32,13 @@ function FavoritesSearch() {
   // typing, and it's the same regardless of any league/filter selection.
   useEffect(() => {
     const controller = new AbortController();
-    fetchItemsCatalog(controller.signal)
+    fetchItemsCatalog(game, controller.signal)
       .then((response) => setCatalog(response.items))
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
       });
     return () => controller.abort();
-  }, []);
+  }, [game]);
 
   useEffect(() => {
     if (!isOpen) return;

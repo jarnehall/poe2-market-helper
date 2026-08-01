@@ -11,6 +11,14 @@ export function setStoredNumber(key: string, value: number): void {
   localStorage.setItem(STORAGE_PREFIX + key, String(value))
 }
 
+export function getStoredString(key: string, fallback: string): string {
+  return localStorage.getItem(STORAGE_PREFIX + key) ?? fallback
+}
+
+export function setStoredString(key: string, value: string): void {
+  localStorage.setItem(STORAGE_PREFIX + key, value)
+}
+
 export function getStoredBoolean(key: string, fallback: boolean): boolean {
   const raw = localStorage.getItem(STORAGE_PREFIX + key)
   if (raw === null) return fallback

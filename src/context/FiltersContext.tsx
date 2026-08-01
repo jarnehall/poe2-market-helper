@@ -10,6 +10,7 @@ import {
   setStoredStringArray,
 } from '../lib/storage'
 import { getUrlParam, sameElements, setUrlParams, splitUrlList } from '../lib/urlParams'
+import { useGame } from './GameContext'
 import { useMeta } from './MetaContext'
 
 // Short, shareable query keys — kept intentionally terse (see setUrlParams
@@ -77,6 +78,7 @@ function clamp(value: number, min: number, max: number): number {
 export function FiltersProvider({ children }: { children: ReactNode }) {
   const meta = useMeta()
   const { bounds } = meta
+  const { game } = useGame()
 
   const defaultFilters = (): FiltersState => ({
     categories: meta.categories,
@@ -113,13 +115,13 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       categories:
         urlCategories !== null
           ? splitUrlList(urlCategories).filter((category) => meta.categories.includes(category))
-          : getStoredStringArray('selectedCategories', defaults.categories),
+          : getStoredStringArray(`${game}:selectedCategories`, defaults.categories),
       pairCurrencies:
         urlPairCurrencies !== null
           ? splitUrlList(urlPairCurrencies).filter((id) =>
               meta.pairCurrencies.some((pairCurrency) => pairCurrency.id === id),
             )
-          : getStoredStringArray('selectedPairCurrencies', defaults.pairCurrencies),
+          : getStoredStringArray(`${game}:selectedPairCurrencies`, defaults.pairCurrencies),
       // Deliberately not read from localStorage otherwise — the day slider
       // should always default to today's date, not the last day this
       // browser viewed — but an explicit ?d= from a shared link still wins.
@@ -130,11 +132,11 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       daysBack:
         urlDaysBack !== null
           ? parseUrlNumber(urlDaysBack, defaults.daysBack)
-          : getStoredNumber('daysBack', defaults.daysBack),
+          : getStoredNumber(`${game}:daysBack`, defaults.daysBack),
       daysForward:
         urlDaysForward !== null
           ? parseUrlNumber(urlDaysForward, defaults.daysForward)
-          : getStoredNumber('daysForward', defaults.daysForward),
+          : getStoredNumber(`${game}:daysForward`, defaults.daysForward),
       investmentCount:
         urlCount !== null
           ? clamp(
@@ -142,13 +144,15 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
               bounds.minBestInvestmentCount,
               bounds.maxBestInvestmentCount,
             )
-          : getStoredNumber('investmentCount', defaults.investmentCount),
+          : getStoredNumber(`${game}:investmentCount`, defaults.investmentCount),
       minVolume:
         urlVolume !== null
           ? clamp(parseUrlNumber(urlVolume, defaults.minVolume), bounds.minVolumeFilter, bounds.maxVolumeFilter)
-          : getStoredNumber('minVolume', defaults.minVolume),
+          : getStoredNumber(`${game}:minVolume`, defaults.minVolume),
       useAveragePairs:
-        urlAverage !== null ? urlAverage === '1' : getStoredBoolean('useAveragePairs', defaults.useAveragePairs),
+        urlAverage !== null
+          ? urlAverage === 'true'
+          : getStoredBoolean(`${game}:useAveragePairs`, defaults.useAveragePairs),
     }
   }
 
@@ -159,14 +163,14 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
   // writes to localStorage, running once per resolved change regardless of
   // how many setters fired to get there.
   useEffect(() => {
-    setStoredStringArray('selectedCategories', filtersRaw.categories)
-    setStoredStringArray('selectedPairCurrencies', filtersRaw.pairCurrencies)
-    setStoredNumber('daysBack', filtersRaw.daysBack)
-    setStoredNumber('daysForward', filtersRaw.daysForward)
-    setStoredNumber('investmentCount', filtersRaw.investmentCount)
-    setStoredNumber('minVolume', filtersRaw.minVolume)
-    setStoredBoolean('useAveragePairs', filtersRaw.useAveragePairs)
-  }, [filtersRaw])
+    setStoredStringArray(`${game}:selectedCategories`, filtersRaw.categories)
+    setStoredStringArray(`${game}:selectedPairCurrencies`, filtersRaw.pairCurrencies)
+    setStoredNumber(`${game}:daysBack`, filtersRaw.daysBack)
+    setStoredNumber(`${game}:daysForward`, filtersRaw.daysForward)
+    setStoredNumber(`${game}:investmentCount`, filtersRaw.investmentCount)
+    setStoredNumber(`${game}:minVolume`, filtersRaw.minVolume)
+    setStoredBoolean(`${game}:useAveragePairs`, filtersRaw.useAveragePairs)
+  }, [game, filtersRaw])
 
   // Days back/forward can never reach further than the day-of-league range
   // there's data for, so their effective max shrinks as currentDayOfLeague
@@ -217,7 +221,7 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       [URL_KEYS.investmentCount]:
         filters.investmentCount === defaults.investmentCount ? null : String(filters.investmentCount),
       [URL_KEYS.minVolume]: filters.minVolume === defaults.minVolume ? null : String(filters.minVolume),
-      [URL_KEYS.useAveragePairs]: filters.useAveragePairs ? '1' : null,
+      [URL_KEYS.useAveragePairs]: filters.useAveragePairs ? 'true' : null,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters])

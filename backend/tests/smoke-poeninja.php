@@ -15,6 +15,11 @@ use App\DataAccess\PoeNinjaClient;
 
 $failures = 0;
 
+// This test is specifically about POE2's live league — POE1 has its own
+// (currently untested-here) poe.ninja config in the same file.
+$poe2NinjaConfig = require __DIR__ . '/../config/poe-ninja.php';
+['detailsUrl' => $detailsUrl, 'typeByCategory' => $typeByCategory] = $poe2NinjaConfig['poe2'];
+
 function check(bool $condition, string $label): void
 {
     global $failures;
@@ -47,7 +52,7 @@ file_put_contents($cacheFile, json_encode([
     'known-empty-item' => ['fetchedAt' => time(), 'entry' => null],
 ]));
 
-$client = new PoeNinjaClient('Definitely Not A Real League', $cacheFile);
+$client = new PoeNinjaClient('Definitely Not A Real League', $cacheFile, $detailsUrl, $typeByCategory);
 
 $result = $client->getEntries([
     ['itemId' => 'not-a-real-item', 'category' => 'Currency'],
@@ -71,8 +76,8 @@ file_put_contents($staleCacheFile, json_encode([
     'hinekoras-lock' => ['fetchedAt' => time() - (3 * 60 * 60), 'entry' => $fakeEntry],
 ]));
 
-$currentLeagueInfoForStaleCheck = json_decode(file_get_contents(__DIR__ . '/../../data/current-league.json'), true);
-$staleClient = new PoeNinjaClient($currentLeagueInfoForStaleCheck['name'], $staleCacheFile);
+$currentLeagueInfoForStaleCheck = json_decode(file_get_contents(__DIR__ . '/../../data/poe2/current-league.json'), true);
+$staleClient = new PoeNinjaClient($currentLeagueInfoForStaleCheck['name'], $staleCacheFile, $detailsUrl, $typeByCategory);
 $staleClient->getEntries([['itemId' => 'hinekoras-lock', 'category' => 'Currency']]);
 
 check($staleClient->getLastAttemptedCount() === 1, 'an entry older than the 2-hour TTL is refetched rather than served stale (network required)');
@@ -83,7 +88,7 @@ check($staleClient->getLastAttemptedCount() === 1, 'an entry older than the 2-ho
 // --- via getLastFailedItemIds(), distinct from a confirmed "no data" ---
 
 $failureCacheFile = sys_get_temp_dir() . '/poe2-market-guide-smoke-cache-failure-' . uniqid() . '.json';
-$failureClient = new PoeNinjaClient('Definitely Not A Real League', $failureCacheFile);
+$failureClient = new PoeNinjaClient('Definitely Not A Real League', $failureCacheFile, $detailsUrl, $typeByCategory);
 $failureResult = $failureClient->getEntries([['itemId' => 'not-a-real-item-either', 'category' => 'Currency']]);
 
 check($failureResult['not-a-real-item-either'] === null, 'an item poe.ninja 404s on comes back null in the main result, same as a confirmed "no data"');
@@ -97,9 +102,9 @@ check($failureClient->getLastFailedItemIds() === ['not-a-real-item-either'], 'th
 // currencies themselves — chaos/divine/exalted all 404 — so this
 // deliberately uses a regular tradeable item instead.)
 
-$currentLeagueInfo = json_decode(file_get_contents(__DIR__ . '/../../data/current-league.json'), true);
+$currentLeagueInfo = json_decode(file_get_contents(__DIR__ . '/../../data/poe2/current-league.json'), true);
 $realCacheFile = sys_get_temp_dir() . '/poe2-market-guide-smoke-cache-real-' . uniqid() . '.json';
-$realClient = new PoeNinjaClient($currentLeagueInfo['name'], $realCacheFile);
+$realClient = new PoeNinjaClient($currentLeagueInfo['name'], $realCacheFile, $detailsUrl, $typeByCategory);
 
 $realResult = $realClient->getEntries([['itemId' => 'hinekoras-lock', 'category' => 'Currency']]);
 $realEntry = $realResult['hinekoras-lock'] ?? null;

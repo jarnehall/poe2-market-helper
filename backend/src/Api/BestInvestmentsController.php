@@ -83,26 +83,33 @@ final class BestInvestmentsController
         $useAveragePairs = QueryParams::bool($query['useAveragePairs'] ?? null);
 
         $leagues = $this->repository->loadFiltered($leagueIds, $categories, $pairCurrencies);
-        $investments = MarketData::getBestInvestmentsForWindow(
+        // Every qualifying investment, not just the top $count — so an item
+        // dropped for having no live-league poe.ninja data (see
+        // resolveRankedInvestments) can be backfilled from the rest of the
+        // ranked pool instead of just shrinking the response below $count.
+        $rankedPool = MarketData::getRankedInvestments(
             $leagues,
-            $count,
             $currentDayOfLeague,
             $daysForward,
             $minVolume,
             $useAveragePairs,
         );
 
-        $investments = $this->payloadBuilder->attachAlternatePairs($investments, $leagues, $currentDayOfLeague, $daysForward);
-
-        $liveDataChecked = $this->payloadBuilder->shouldCheckLiveLeague($investments, $leagueIds);
-        $investments = $this->payloadBuilder->augmentWithLiveLeague($investments, $leagueIds);
+        $resolved = $this->payloadBuilder->resolveRankedInvestments(
+            $rankedPool,
+            $count,
+            $leagues,
+            $leagueIds,
+            $currentDayOfLeague,
+            $daysForward,
+        );
 
         JsonResponse::send([
             'investments' => array_map(
                 fn(array $investment): array => $this->payloadBuilder->toPayload($investment, $leagues, $currentDayOfLeague, $daysBack, $daysForward),
-                $investments,
+                $resolved['investments'],
             ),
-            'poeNinjaStatus' => $this->payloadBuilder->poeNinjaStatus($liveDataChecked),
+            'poeNinjaStatus' => $resolved['poeNinjaStatus'],
         ]);
     }
 }

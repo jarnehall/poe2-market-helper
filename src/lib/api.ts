@@ -1,4 +1,4 @@
-import type { BestInvestmentsResponse, CatalogItem, FavoriteItem, Meta } from '../types'
+import type { BestInvestmentsResponse, CatalogItem, CurrentLeaguesByGame, FavoriteItem, Game, Meta } from '../types'
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal })
@@ -15,11 +15,12 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return body as T
 }
 
-export function fetchMeta(signal?: AbortSignal): Promise<Meta> {
-  return fetchJson<Meta>('/api/meta', signal)
+export function fetchMeta(game: Game, signal?: AbortSignal): Promise<Meta> {
+  return fetchJson<Meta>(`/api/meta?game=${game}`, signal)
 }
 
 export interface BestInvestmentsParams {
+  game: Game
   leagues: string[]
   categories: string[]
   pairCurrencies: string[]
@@ -36,6 +37,7 @@ export function fetchBestInvestments(
   signal?: AbortSignal,
 ): Promise<BestInvestmentsResponse> {
   const query = new URLSearchParams({
+    game: params.game,
     leagues: params.leagues.join(','),
     categories: params.categories.join(','),
     pairCurrencies: params.pairCurrencies.join(','),
@@ -51,6 +53,7 @@ export function fetchBestInvestments(
 }
 
 export interface FavoritesParams {
+  game: Game
   favorites: FavoriteItem[]
   leagues: string[]
   currentDayOfLeague: number
@@ -63,6 +66,7 @@ export function fetchFavorites(
   signal?: AbortSignal,
 ): Promise<BestInvestmentsResponse> {
   const query = new URLSearchParams({
+    game: params.game,
     leagues: params.leagues.join(','),
     currentDayOfLeague: String(params.currentDayOfLeague),
     daysBack: String(params.daysBack),
@@ -73,6 +77,12 @@ export function fetchFavorites(
   return fetchJson<BestInvestmentsResponse>(`/api/favorites?${query.toString()}`, signal)
 }
 
-export function fetchItemsCatalog(signal?: AbortSignal): Promise<{ items: CatalogItem[] }> {
-  return fetchJson<{ items: CatalogItem[] }>('/api/items', signal)
+export function fetchItemsCatalog(game: Game, signal?: AbortSignal): Promise<{ items: CatalogItem[] }> {
+  return fetchJson<{ items: CatalogItem[] }>(`/api/items?game=${game}`, signal)
+}
+
+// Not game-scoped, unlike everything above — used only to decide which
+// game's route "/" should redirect to (see App.tsx).
+export function fetchCurrentLeagues(signal?: AbortSignal): Promise<CurrentLeaguesByGame> {
+  return fetchJson<CurrentLeaguesByGame>('/api/current-leagues', signal)
 }

@@ -2,21 +2,26 @@
 
 declare(strict_types=1);
 
-// Static league config — display name/color aren't derivable from the data
-// files themselves, and the set of leagues doesn't change per-request.
-// Mirrors the old frontend LEAGUES constant in src/lib/marketData.ts.
+// Static league config, keyed by game ('poe1'/'poe2') — display name/color
+// aren't derivable from the data files themselves, and the set of leagues
+// doesn't change per-request. Mirrors the old frontend LEAGUES constant in
+// src/lib/marketData.ts. Which game a request is scoped to is resolved once,
+// at the very top of public/index.php, from the `game` query param — this
+// file is looked up by that key, and everything built from it afterwards
+// (data dir, LeagueRepository, PoeNinjaClient) is already game-scoped, so no
+// other code needs its own `game` branching.
 //
 // 'folder' => null marks the current, still-running league: it has no
-// static data/ folder at all (LeagueRepository skips it entirely) and is
-// never fed into the best-investments ranking — its data is instead fetched
-// live from poe.ninja and cached (see DataAccess\PoeNinjaClient), and shown
-// only as an extra overlay line on whatever the static leagues already
+// static data/<game>/<folder> at all (LeagueRepository skips it entirely)
+// and is never fed into the best-investments ranking — its data is instead
+// fetched live from poe.ninja and cached (see DataAccess\PoeNinjaClient), and
+// shown only as an extra overlay line on whatever the static leagues already
 // ranked. Its name/color here are just a fallback; MetaController prefers
-// data/current-league.json's own id/color when they match, since that file
-// is the one meant to be updated each time the current league changes —
-// including 'startDate', which is why there's no 'startDate' key for it
-// here: this config would just be a second, driftable source of truth for
-// a value that already lives in current-league.json.
+// data/<game>/current-league.json's own id/color when they match, since
+// that file is the one meant to be updated each time the current league
+// changes — including 'startDate', which is why there's no 'startDate' key
+// for it here: this config would just be a second, driftable source of
+// truth for a value that already lives in current-league.json.
 //
 // The static leagues' 'startDate' is that league's real launch date/time, so
 // day 1 means the same calendar date for every item in that league, even
@@ -26,7 +31,23 @@ declare(strict_types=1);
 // being tracked some days after the league itself launched, no rows at all
 // until whichever day its own history actually begins.
 return [
-    ['id' => 'runes-of-aldur', 'name' => 'Runes of Aldur', 'color' => '#dac74d', 'folder' => null],
-    ['id' => 'fate-of-the-vaal', 'name' => 'Fate of the Vaal', 'color' => '#af15a3', 'folder' => 'fate-of-the-vaal', 'startDate' => '2025-12-12T19:00:00Z'],
-    ['id' => 'rise-of-the-abyssal', 'name' => 'Rise of the Abyssal', 'color' => '#28bc9c', 'folder' => 'rise-of-the-abyssal', 'startDate' => '2025-08-29T20:00:00Z'],
+    'poe2' => [
+        ['id' => 'runes-of-aldur', 'name' => 'Runes of Aldur', 'color' => '#dac74d', 'folder' => null],
+        ['id' => 'fate-of-the-vaal', 'name' => 'Fate of the Vaal', 'color' => '#af15a3', 'folder' => 'fate-of-the-vaal', 'startDate' => '2025-12-12T19:00:00Z'],
+        ['id' => 'rise-of-the-abyssal', 'name' => 'Rise of the Abyssal', 'color' => '#28bc9c', 'folder' => 'rise-of-the-abyssal', 'startDate' => '2025-08-29T20:00:00Z'],
+    ],
+    'poe1' => [
+        // poe.ninja's own `league` query value for this league is just
+        // "Allflame", not its full display name — confirmed via
+        // https://poe.ninja/poe1/api/economy/exchange/current/details?league=Allflame&type=Currency&id=hinekoras-lock
+        // (the display name 404s on every item). 'poeNinjaLeague' lets
+        // public/index.php build PoeNinjaClient with the right query value
+        // without changing what's shown in the UI — see its lookup there.
+        // Not read anywhere else, so it's harmless (and un-transmitted to
+        // the frontend) for the leagues that don't need it, like POE2's.
+        ['id' => 'curse-of-the-allflame', 'name' => 'Curse of the Allflame', 'color' => '#dac74d', 'folder' => null, 'poeNinjaLeague' => 'Allflame'],
+        ['id' => 'mirage', 'name' => 'Mirage', 'color' => '#7c4dff', 'folder' => 'mirage', 'startDate' => '2026-03-06T19:00:00Z'],
+        ['id' => 'keepers-of-the-flame', 'name' => 'Keepers of the Flame', 'color' => '#c0392b', 'folder' => 'keepers-of-the-flame', 'startDate' => '2025-10-31T19:00:00Z'],
+        ['id' => 'mercenaries', 'name' => 'Mercenaries', 'color' => '#b4359d', 'folder' => 'mercenaries', 'startDate' => '2025-06-13T20:00:00Z'],
+    ],
 ];

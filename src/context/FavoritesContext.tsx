@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { getStoredStringArray, setStoredStringArray } from '../lib/storage'
 import type { FavoriteItem } from '../types'
+import { useGame } from './GameContext'
 
 // getStoredStringArray/setStoredStringArray only round-trip string[], so each
 // favorite is packed into one delimited string rather than adding a new
@@ -29,15 +30,16 @@ interface FavoritesContextValue {
 const FavoritesContext = createContext<FavoritesContextValue | null>(null)
 
 export function FavoritesProvider({ children }: { children: ReactNode }) {
+  const { game } = useGame()
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() =>
-    getStoredStringArray('favorites', [])
+    getStoredStringArray(`${game}:favorites`, [])
       .map(decode)
       .filter((favorite): favorite is FavoriteItem => favorite !== null),
   )
 
   const persist = (next: FavoriteItem[]) => {
     setFavorites(next)
-    setStoredStringArray('favorites', next.map(encode))
+    setStoredStringArray(`${game}:favorites`, next.map(encode))
   }
 
   const value = useMemo<FavoritesContextValue>(

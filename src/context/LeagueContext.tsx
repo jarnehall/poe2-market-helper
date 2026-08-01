@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { getStoredStringArray, setStoredStringArray } from '../lib/storage'
 import { getUrlParam, sameElements, setUrlParams, splitUrlList } from '../lib/urlParams'
 import type { LeagueMeta } from '../types'
+import { useGame } from './GameContext'
 import { useMeta } from './MetaContext'
 
 // l=selected league ids — see FiltersContext's URL_KEYS for the rest of the
@@ -33,6 +34,7 @@ const LeagueContext = createContext<LeagueContextValue | null>(null)
 
 export function LeagueProvider({ children }: { children: ReactNode }) {
   const { leagues } = useMeta()
+  const { game } = useGame()
 
   // The live league never contributes to best-investments ranking on its
   // own (its data is a display-only overlay, always fetched regardless of
@@ -55,7 +57,7 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
       return fromUrl.length > 0 ? fromUrl : defaultIds
     }
 
-    const stored = getStoredStringArray('selectedLeagueIds', defaultIds)
+    const stored = getStoredStringArray(`${game}:selectedLeagueIds`, defaultIds)
     // Drops the live league id out of anything restored from a previous
     // session (from before it stopped being individually selectable), so a
     // stale localStorage value can't leave it as the sole "selected" league.
@@ -64,8 +66,8 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
   })
 
   useEffect(
-    () => setStoredStringArray('selectedLeagueIds', selectedLeagueIds),
-    [selectedLeagueIds],
+    () => setStoredStringArray(`${game}:selectedLeagueIds`, selectedLeagueIds),
+    [game, selectedLeagueIds],
   )
 
   // Mirrors the URL the same way FiltersContext does — removed entirely

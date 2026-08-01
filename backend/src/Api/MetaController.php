@@ -30,9 +30,26 @@ final class MetaController
         $currentLeagueInfo = $this->repository->currentLeagueInfo();
         $visitorCount = $this->visitorTracker->recordVisitAndCount(self::clientIp($server));
 
-        // data/current-league.json is the one meant to be updated each time
-        // the current league changes, so its id/name/color win over the
-        // static leagues.php entry for whichever league matches it.
+        // poe.ninja's own economy-page URL slug for the live league isn't
+        // always its display name lowercased (e.g. POE1's "Curse of the
+        // Allflame" is poe.ninja's "allflame") — same mismatch, and the same
+        // leagues.php 'poeNinjaLeague' override, as public/index.php already
+        // needs for its own poe.ninja API calls. The frontend builds poe.ninja
+        // *links* itself (see src/lib/marketData.ts's getPoeNinjaUrl), so it
+        // needs this slug too rather than deriving one from the display name.
+        $currentLeagueConfig = null;
+        foreach ($this->leagueConfigs as $config) {
+            if ($config['id'] === ($currentLeagueInfo['id'] ?? null)) {
+                $currentLeagueConfig = $config;
+                break;
+            }
+        }
+        $currentLeagueInfo['poeNinjaLeague'] =
+            $currentLeagueConfig['poeNinjaLeague'] ?? ($currentLeagueInfo['name'] ?? $currentLeagueConfig['name'] ?? '');
+
+        // data/<game>/current-league.json is the one meant to be updated
+        // each time the current league changes, so its id/name/color win
+        // over the static leagues.php entry for whichever league matches it.
         // isLive flags the league with no static data/ folder (fetched from
         // poe.ninja instead) — it never contributes to best-investments
         // ranking, so the frontend needs this to pick a sane default league

@@ -69,6 +69,14 @@ final class InvestmentPayloadBuilder
      * percent-change breakdown shown next to the card's main number) — the
      * live league was never actually selected, so its own "growth" isn't a
      * meaningful data point there, only the leagues the user picked are.
+     *
+     * An item poe.ninja has no live-league data for at all (a genuine "not
+     * traded yet", or a fetch failure — see PoeNinjaClient, both come back
+     * as a null entry here) is dropped from the result entirely, rather than
+     * shown with the live league's overlay silently missing: the live league
+     * was explicitly selected, so a card that can't show it isn't a useful
+     * answer to what was asked for. This applies to a pinned favorite too,
+     * not just ranked cards — same shared method, same rule either way.
      */
     public function augmentWithLiveLeague(array $investments, array $leagueIds): array
     {
@@ -91,7 +99,14 @@ final class InvestmentPayloadBuilder
         );
         $liveEntries = $this->poeNinjaClient->getEntries($neededItems);
 
-        foreach ($investments as &$investment) {
+        // Rebuilt into a fresh, re-indexed array (rather than unset()-ing in
+        // place) so a dropped item can never leave a gap in the numeric keys
+        // — array_map (see both callers) preserves keys, and a non-sequential
+        // array serializes as a JSON object instead of an array, which the
+        // frontend doesn't expect.
+        $result = [];
+
+        foreach ($investments as $investment) {
             $liveEntry = $liveEntries[$investment['item']['detailsId']] ?? null;
             if ($liveEntry === null) {
                 continue;
@@ -122,10 +137,76 @@ final class InvestmentPayloadBuilder
                 }
                 unset($altPair, $pairs);
             }
-        }
-        unset($investment);
 
-        return $investments;
+            $result[] = $investment;
+        }
+
+        return $result;
+    }
+
+    /**
+     * BestInvestmentsController's own entry point: resolves the final $count
+     * cards for a ranked request from $rankedPool (see
+     * MarketData::getRankedInvestments, already sorted best-first), keeping
+     * the response's count intact even when some items get dropped for
+     * having no live-league poe.ninja data (see augmentWithLiveLeague) — the
+     * next-best candidate(s) from the pool backfill each drop, in a batch
+     * just large enough to cover however many were just dropped, repeating
+     * until either $count survive or the pool runs out. When the live
+     * league isn't even relevant to this request (see
+     * shouldCheckLiveLeague), the very first batch already IS the final
+     * $count with nothing to drop, so this costs exactly one iteration —
+     * same as calling augmentWithLiveLeague directly once.
+     *
+     * Also accumulates poe.ninja's attempted/failed-item counts across every
+     * batch actually checked: PoeNinjaClient::getEntries resets its own
+     * counters on every call, so reading them only after the *last* batch
+     * (as a single augmentWithLiveLeague call's caller normally would) would
+     * silently under-report every earlier batch's own fetches.
+     *
+     * @return array{investments: array, poeNinjaStatus: array{checked: bool, attemptedCount: int, failedItemIds: array<int, string>}}
+     */
+    public function resolveRankedInvestments(
+        array $rankedPool,
+        int $count,
+        array $leagues,
+        array $leagueIds,
+        int $currentDayOfLeague,
+        int $daysForward,
+    ): array {
+        $checked = $this->shouldCheckLiveLeague($rankedPool, $leagueIds);
+
+        $investments = [];
+        $attemptedTotal = 0;
+        $failedIdsTotal = [];
+        $offset = 0;
+
+        while (count($investments) < $count && $offset < count($rankedPool)) {
+            $batch = array_slice($rankedPool, $offset, $count - count($investments));
+            if ($batch === []) {
+                break;
+            }
+            $offset += count($batch);
+
+            $batch = $this->attachAlternatePairs($batch, $leagues, $currentDayOfLeague, $daysForward);
+            $batch = $this->augmentWithLiveLeague($batch, $leagueIds);
+
+            if ($checked) {
+                $attemptedTotal += $this->poeNinjaClient->getLastAttemptedCount();
+                $failedIdsTotal = [...$failedIdsTotal, ...$this->poeNinjaClient->getLastFailedItemIds()];
+            }
+
+            $investments = [...$investments, ...$batch];
+        }
+
+        return [
+            'investments' => $investments,
+            'poeNinjaStatus' => [
+                'checked' => $checked,
+                'attemptedCount' => $attemptedTotal,
+                'failedItemIds' => $failedIdsTotal,
+            ],
+        ];
     }
 
     private static function findPairById(array $pairs, string $pairId): ?array

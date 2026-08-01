@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { useFilters } from "../context/FiltersContext";
+import { useGame } from "../context/GameContext";
 import { useMeta } from "../context/MetaContext";
 import { changeClass, formatPercentChange } from "../lib/format";
 import { getImageUrl, getPoeNinjaUrl } from "../lib/marketData";
@@ -24,10 +25,11 @@ function InvestmentCard({
   isFavorite: (itemId: string, pairId: string) => boolean;
   onToggleFavorite: (favorite: FavoriteItem) => void;
 }) {
-  const { leagues } = useMeta();
+  const { leagues, currentLeague } = useMeta();
   const { filters } = useFilters();
+  const { game } = useGame();
   const leagueById = new Map(leagues.map((league) => [league.id, league]));
-  const fallbackLeagueName = leagues[0]?.name ?? "";
+  const poeNinjaLeagueName = currentLeague.poeNinjaLeague;
 
   // Which of investment.pairs' charts is currently shown — defaults to (and
   // resets back to, if a refetch swaps in a different item/pair for this
@@ -210,7 +212,7 @@ function InvestmentCard({
         </div>
         <a
           className="best-investment-poe-ninja-link"
-          href={getPoeNinjaUrl(investment.item, fallbackLeagueName)}
+          href={getPoeNinjaUrl(investment.item, poeNinjaLeagueName, game)}
           target="_blank"
           rel="noreferrer"
         >

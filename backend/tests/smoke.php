@@ -4,11 +4,21 @@ declare(strict_types=1);
 
 // Dependency-free smoke tests for the ported ranking/date-math logic in
 // Domain\MarketData — no PHPUnit/Composer. Run with:
-//   <php-bin> backend/tests/smoke.php
+//   <php-bin> -c backend/php.ini backend/tests/smoke.php
+// -c backend/php.ini (curl) is needed for the resolveRankedInvestments
+// backfill tests near the end, which deliberately let PoeNinjaClient
+// attempt (and fail fast against) an '.invalid' host for a couple of
+// items — everything else here is pure fixture data with no real request.
 // Exits non-zero (and prints to STDERR) on the first failing check.
 
 require_once __DIR__ . '/../src/Domain/MarketData.php';
+require_once __DIR__ . '/../src/DataAccess/LeagueRepository.php';
+require_once __DIR__ . '/../src/DataAccess/PoeNinjaClient.php';
+require_once __DIR__ . '/../src/Api/InvestmentPayloadBuilder.php';
 
+use App\Api\InvestmentPayloadBuilder;
+use App\DataAccess\LeagueRepository;
+use App\DataAccess\PoeNinjaClient;
 use App\Domain\MarketData;
 
 $failures = 0;
@@ -436,6 +446,208 @@ check(
     count($noWindowData) === 1 && $noWindowData[0]['percentChange'] === null,
     'a pin with no data at all in the requested window is still included, with a null percentChange, rather than dropped like getBestInvestmentsForWindow would',
 );
+
+// --- LeagueRepository: constructing it with a game-scoped $dataDir/$leagueConfigs ---
+// --- isolates it entirely from the other game — this is the whole point of ---
+// --- resolving `game` once in public/index.php rather than threading it through ---
+// --- every method (see backend/config/leagues.php and public/index.php). ---
+
+$allLeagueConfigs = require __DIR__ . '/../config/leagues.php';
+$repoDataDir = __DIR__ . '/../../data';
+
+$poe1Repo = new LeagueRepository($repoDataDir . '/poe1', $allLeagueConfigs['poe1']);
+$poe2Repo = new LeagueRepository($repoDataDir . '/poe2', $allLeagueConfigs['poe2']);
+
+check(
+    $poe1Repo->leagueIds() === ['curse-of-the-allflame', 'mirage', 'keepers-of-the-flame', 'mercenaries'],
+    'a POE1-scoped repository only ever sees POE1\'s own league ids',
+);
+check(
+    !in_array('runes-of-aldur', $poe1Repo->leagueIds(), true),
+    'a POE1-scoped repository never sees a POE2 league id, even though both games share one leagues.php',
+);
+check(
+    $poe2Repo->leagueIds() === ['runes-of-aldur', 'fate-of-the-vaal', 'rise-of-the-abyssal'],
+    'a POE2-scoped repository is unaffected by POE1 existing alongside it',
+);
+
+check(
+    $poe1Repo->listCategories() === ['Currency'],
+    'POE1 starts with exactly one category (Currency) — listCategories() derives this from data/poe1/mirage/*.json alone, not any global/cross-game list',
+);
+check(
+    $poe1Repo->currentLeagueInfo()['id'] === 'curse-of-the-allflame',
+    'POE1\'s current-league.json (Curse of the Allflame) is read from the POE1-scoped data dir, independent of POE2\'s',
+);
+
+$poe1PairCurrencies = array_map(fn(array $p): string => $p['id'], $poe1Repo->listPairCurrencies());
+$poe1Filtered = $poe1Repo->loadFiltered(['mirage'], ['Currency'], $poe1PairCurrencies);
+check(
+    count($poe1Filtered) === 1 && count($poe1Filtered[0]['itemEntries']) > 0,
+    'loadFiltered() against the real ingested Mirage snapshot returns a non-empty item list',
+);
+check(
+    $poe1Filtered[0]['itemEntries'][0]['pairs'] !== [],
+    'the real ingested items keep their actual (non-empty) pairs after filtering to POE1\'s own pair-currency list',
+);
+
+// --- InvestmentPayloadBuilder::augmentWithLiveLeague drops an item entirely ---
+// --- when poe.ninja has no live-league data for it, rather than showing a ---
+// --- card that's silently missing the exact overlay the live league was ---
+// --- selected for. A pre-seeded, still-fresh cache entry (same technique as
+// backend/tests/smoke-poeninja.php) keeps this network-free: PoeNinjaClient
+// serves straight from cache within its TTL, no real fetch attempted.
+
+$liveDataEntry = json_decode(json_encode([
+    'item' => ['id' => 'chaos', 'name' => 'Chaos Orb', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'chaos-orb'],
+    'pairs' => [['id' => 'divine', 'rate' => 100, 'volumePrimaryValue' => 5, 'history' => [['timestamp' => '2026-01-02T00:00:00Z', 'rate' => 100, 'volumePrimaryValue' => 5]]]],
+    'core' => ['items' => [], 'rates' => [], 'primary' => 'chaos', 'secondary' => 'divine'],
+]), true);
+
+$payloadCacheFile = sys_get_temp_dir() . '/poe2-market-guide-smoke-payload-cache-' . uniqid() . '.json';
+file_put_contents($payloadCacheFile, json_encode([
+    'chaos-orb' => ['fetchedAt' => time(), 'entry' => $liveDataEntry],
+    // A confirmed "poe.ninja has no data for this item in the live league" —
+    // same null-entry shape a genuine no-trades-yet response or a fetch
+    // failure both collapse to (see PoeNinjaClient::getEntries).
+    'no-data-orb' => ['fetchedAt' => time(), 'entry' => null],
+]));
+
+$payloadClient = new PoeNinjaClient('Does Not Matter — served from cache', $payloadCacheFile, 'https://example.invalid/details', []);
+$payloadBuilder = new InvestmentPayloadBuilder($payloadClient, [
+    'id' => 'live-league',
+    'name' => 'Live League',
+    'startDate' => '2026-01-01T00:00:00Z',
+]);
+
+$investmentWithLiveData = [
+    'item' => ['id' => 'chaos', 'name' => 'Chaos Orb', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'chaos-orb'],
+    'pairId' => 'divine',
+    'pairName' => 'Divine Orb',
+    'pairImage' => null,
+    'percentChange' => 10.0,
+    'leagueChanges' => [],
+    'leagueHistories' => [],
+];
+$investmentWithNoLiveData = [
+    'item' => ['id' => 'no-data', 'name' => 'No Data Orb', 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => 'no-data-orb'],
+    'pairId' => 'divine',
+    'pairName' => 'Divine Orb',
+    'pairImage' => null,
+    'percentChange' => 5.0,
+    'leagueChanges' => [],
+    'leagueHistories' => [],
+];
+
+$augmented = $payloadBuilder->augmentWithLiveLeague(
+    [$investmentWithLiveData, $investmentWithNoLiveData],
+    ['live-league'],
+);
+
+check(
+    count($augmented) === 1 && $augmented[0]['item']['id'] === 'chaos',
+    'augmentWithLiveLeague drops an investment entirely when poe.ninja has no live-league data for it',
+);
+check(
+    count($augmented) === 1 && count($augmented[0]['leagueHistories']) === 1
+        && $augmented[0]['leagueHistories'][0]['league']['id'] === 'live-league',
+    'the surviving investment still gets the live league appended as an extra leagueHistories entry',
+);
+check(
+    array_keys($augmented) === [0],
+    'the result is re-indexed sequentially after a drop, not left with a gap at key 0 that would serialize as a JSON object instead of an array',
+);
+
+@unlink($payloadCacheFile);
+
+// --- InvestmentPayloadBuilder::resolveRankedInvestments backfills past ---
+// --- dropped items so the response still has $count investments (as long ---
+// --- as the ranked pool has enough candidates left), instead of silently ---
+// --- shrinking below what was asked for. Four ranked candidates, best to
+// worst: item1 (uncached — genuinely fails to fetch), item2 (cached, has
+// data), item3 (uncached — fails), item4 (cached, has data) — requesting 2
+// should skip both failures and land on [item2, item4].
+//
+// item1/item3 are deliberately left OUT of the cache (rather than cached
+// with a null entry, like the single-item test above) so this can also
+// verify attemptedCount/failedItemIds actually accumulate across batches:
+// a cache HIT never counts as "attempted" regardless of its value, so an
+// all-cached fixture would report attemptedCount 0 no matter how many
+// batches ran — this needs at least one genuine fetch per batch to
+// distinguish "only the last batch's stats" from "every batch's stats".
+// The fetch itself still can't reach a real network: '.invalid' is an
+// IANA-reserved TLD guaranteed to fail DNS resolution immediately.
+
+$backfillCacheFile = sys_get_temp_dir() . '/poe2-market-guide-smoke-backfill-cache-' . uniqid() . '.json';
+
+function smokeFakeLiveEntry(string $detailsId): array
+{
+    return json_decode(json_encode([
+        'item' => ['id' => $detailsId, 'name' => $detailsId, 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => $detailsId],
+        'pairs' => [['id' => 'divine', 'rate' => 1, 'volumePrimaryValue' => 1, 'history' => []]],
+        'core' => ['items' => [], 'rates' => [], 'primary' => 'chaos', 'secondary' => 'divine'],
+    ]), true);
+}
+
+file_put_contents($backfillCacheFile, json_encode([
+    'item2-details' => ['fetchedAt' => time(), 'entry' => smokeFakeLiveEntry('item2-details')],
+    'item4-details' => ['fetchedAt' => time(), 'entry' => smokeFakeLiveEntry('item4-details')],
+]));
+
+$backfillClient = new PoeNinjaClient('Does Not Matter — served from cache', $backfillCacheFile, 'https://example.invalid/details', []);
+$backfillBuilder = new InvestmentPayloadBuilder($backfillClient, [
+    'id' => 'live-league',
+    'name' => 'Live League',
+    'startDate' => '2026-01-01T00:00:00Z',
+]);
+
+function smokeFixtureInvestment(string $itemId, float $percentChange): array
+{
+    return [
+        'item' => ['id' => $itemId, 'name' => $itemId, 'image' => '/x.png', 'category' => 'Currency', 'detailsId' => "{$itemId}-details"],
+        'pairId' => 'divine',
+        'pairName' => 'Divine Orb',
+        'pairImage' => null,
+        'percentChange' => $percentChange,
+        'leagueChanges' => [],
+        'leagueHistories' => [],
+    ];
+}
+
+$rankedPool = [
+    smokeFixtureInvestment('item1', 40.0),
+    smokeFixtureInvestment('item2', 30.0),
+    smokeFixtureInvestment('item3', 20.0),
+    smokeFixtureInvestment('item4', 10.0),
+];
+
+$resolved = $backfillBuilder->resolveRankedInvestments($rankedPool, 2, [], ['live-league'], 3, 3);
+
+check(
+    count($resolved['investments']) === 2,
+    'resolveRankedInvestments backfills past dropped items to still return the requested count',
+);
+check(
+    array_map(fn(array $inv): string => $inv['item']['id'], $resolved['investments']) === ['item2', 'item4'],
+    'the survivors are exactly the ranked candidates that actually had live-league data, in rank order, skipping the two that didn\'t',
+);
+check(
+    $resolved['poeNinjaStatus']['attemptedCount'] === 2,
+    'poeNinjaStatus accumulates attemptedCount across every backfill batch (item1 in round 1, item3 in round 2 — item2/item4 are cache hits and don\'t count), not just the last round',
+);
+check(
+    $resolved['poeNinjaStatus']['failedItemIds'] === ['item1-details', 'item3-details'],
+    'failedItemIds accumulates across batches too, in the order each genuine failure was actually encountered',
+);
+
+$exhaustedPool = [smokeFixtureInvestment('item1', 40.0), smokeFixtureInvestment('item3', 20.0)];
+$exhausted = $backfillBuilder->resolveRankedInvestments($exhaustedPool, 2, [], ['live-league'], 3, 3);
+check(
+    count($exhausted['investments']) === 0,
+    'asking for more than the pool can supply after drops returns fewer (here zero) rather than looping forever or erroring',
+);
+
+@unlink($backfillCacheFile);
 
 if ($failures > 0) {
     fwrite(STDERR, "\n{$failures} check(s) failed.\n");

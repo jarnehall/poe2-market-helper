@@ -21,8 +21,10 @@ require_once $backendDir . '/src/Api/MetaController.php';
 require_once $backendDir . '/src/Api/BestInvestmentsController.php';
 require_once $backendDir . '/src/Api/FavoritesController.php';
 require_once $backendDir . '/src/Api/ItemsController.php';
+require_once $backendDir . '/src/Api/CurrentLeaguesController.php';
 
 use App\Api\BestInvestmentsController;
+use App\Api\CurrentLeaguesController;
 use App\Api\FavoritesController;
 use App\Api\InvestmentPayloadBuilder;
 use App\Api\ItemsController;
@@ -33,22 +35,55 @@ use App\DataAccess\VisitorTracker;
 use App\Http\JsonResponse;
 use App\Http\Router;
 
-$dataDir = $repoRoot . '/data';
-$leagueConfigs = require $backendDir . '/config/leagues.php';
+// Which game ('poe1'/'poe2') this request is scoped to — resolved once,
+// here, before constructing anything else. Everything below is built
+// game-scoped from this single point (data dir, league config, poe.ninja
+// endpoint), so LeagueRepository/PoeNinjaClient/the controllers themselves
+// never need their own `game` branching — they just operate on whatever
+// game-specific inputs they're handed.
+$leagueConfigsByGame = require $backendDir . '/config/leagues.php';
+$poeNinjaConfigsByGame = require $backendDir . '/config/poe-ninja.php';
+
+$game = $_GET['game'] ?? 'poe2';
+if (!is_string($game) || !isset($leagueConfigsByGame[$game])) {
+    JsonResponse::send(['error' => "Unknown game: {$game}"], 400);
+}
+
+$dataDir = $repoRoot . '/data/' . $game;
+$leagueConfigs = $leagueConfigsByGame[$game];
+$poeNinjaConfig = $poeNinjaConfigsByGame[$game];
 $bounds = require $backendDir . '/config/bounds.php';
 
 $repository = new LeagueRepository($dataDir, $leagueConfigs);
 $currentLeagueInfo = $repository->currentLeagueInfo();
+
+// poe.ninja's own `league` query value isn't always the league's display
+// name (e.g. POE1's "Curse of the Allflame" is poe.ninja's "Allflame") —
+// leagues.php's matching static entry can override it via 'poeNinjaLeague';
+// most leagues don't need one, so this just falls back to the display name.
+$liveLeagueConfig = null;
+foreach ($leagueConfigs as $config) {
+    if ($config['id'] === ($currentLeagueInfo['id'] ?? null)) {
+        $liveLeagueConfig = $config;
+        break;
+    }
+}
+$poeNinjaLeagueName = $liveLeagueConfig['poeNinjaLeague'] ?? $currentLeagueInfo['name'];
+
 $poeNinjaClient = new PoeNinjaClient(
-    $currentLeagueInfo['name'],
+    $poeNinjaLeagueName,
     $dataDir . '/cache/' . $currentLeagueInfo['id'] . '.json',
+    $poeNinjaConfig['detailsUrl'],
+    $poeNinjaConfig['typeByCategory'],
 );
 $payloadBuilder = new InvestmentPayloadBuilder($poeNinjaClient, $currentLeagueInfo);
 // __FILE__ (not a hardcoded path) so this works whether index.php is run
 // directly (dev server) or required from public_html/api.php (one.com) —
 // its mtime changes whenever this file is re-uploaded, which is what lets
 // VisitorTracker detect "a new deploy happened" with no manual reset step.
-$visitorTracker = new VisitorTracker($dataDir . '/analytics/visitors.json', (int) filemtime(__FILE__));
+// Deliberately the top-level (not game-scoped) data dir — visits are
+// counted once for the app overall, not split per game.
+$visitorTracker = new VisitorTracker($repoRoot . '/data/analytics/visitors.json', (int) filemtime(__FILE__));
 
 $requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 $method = $_SERVER['REQUEST_METHOD'];
@@ -102,6 +137,11 @@ if (str_starts_with($requestPath, '/api/')) {
     $router->get(
         '#^/api/items$#',
         fn() => (new ItemsController($repository))->index(),
+    );
+    // Not game-scoped (unlike every route above) — see CurrentLeaguesController.
+    $router->get(
+        '#^/api/current-leagues$#',
+        fn() => (new CurrentLeaguesController($repoRoot))->index(),
     );
     $router->dispatch($method, $requestPath);
 

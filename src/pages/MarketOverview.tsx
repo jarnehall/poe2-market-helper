@@ -6,6 +6,7 @@ import ChevronIcon from "../components/ChevronIcon";
 import DayOfLeagueSlider from "../components/DayOfLeagueSlider";
 import DaySpanSlider from "../components/DaySpanSlider";
 import FavoritesSearch from "../components/FavoritesSearch";
+import GameSwitcher from "../components/GameSwitcher";
 import InvestmentCountSlider from "../components/InvestmentCountSlider";
 import LeagueFilter from "../components/LeagueFilter";
 import MinVolumeSlider from "../components/MinVolumeSlider";
@@ -13,13 +14,21 @@ import PairCurrencyFilter from "../components/PairCurrencyFilter";
 import ResetFiltersButton from "../components/ResetFiltersButton";
 import { useFavorites } from "../context/FavoritesContext";
 import { useFilters } from "../context/FiltersContext";
+import { useGame } from "../context/GameContext";
 import { useLeague } from "../context/LeagueContext";
 import { useMeta } from "../context/MetaContext";
 import { fetchBestInvestments, fetchFavorites } from "../lib/api";
 import { formatDate, formatTimeUntil } from "../lib/format";
-import { DEFAULT_CURRENT_DATE, getDayOfLeagueForDate, getImageUrl } from "../lib/marketData";
+import {
+  DEFAULT_CURRENT_DATE,
+  getDayOfLeagueForDate,
+  getHeaderImage,
+} from "../lib/marketData";
 import { useKeepOnScreen } from "../lib/useKeepOnScreen";
-import type { BestInvestment as BestInvestmentEntry, PoeNinjaStatus } from "../types";
+import type {
+  BestInvestment as BestInvestmentEntry,
+  PoeNinjaStatus,
+} from "../types";
 
 type QueryStatus = "loading" | "error" | "success";
 
@@ -29,13 +38,8 @@ type QueryStatus = "loading" | "error" | "success";
 // drag collapses into a single request instead of dozens.
 const FETCH_DEBOUNCE_MS = 350;
 
-// Same Divine Orb icon shown throughout the app for that currency — purely
-// decorative branding here, not tied to any particular league's data, so
-// it's a fixed path rather than looked up per-request.
-const DIVINE_ORB_IMAGE =
-  "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/2986e220b3/CurrencyModValues.png";
-
 function MarketOverview() {
+  const { game } = useGame();
   const { currentLeague, bounds, visitorCount } = useMeta();
   const { selectedLeagueIds, liveLeague } = useLeague();
   const { favorites, isFavorite, toggleFavorite } = useFavorites();
@@ -45,22 +49,30 @@ function MarketOverview() {
   const requestLeagueIds = liveLeague
     ? [...selectedLeagueIds, liveLeague.id]
     : selectedLeagueIds;
-  const { filters, setInvestmentCount, setMinVolume, setUseAveragePairs } = useFilters();
+  const { filters, setInvestmentCount, setMinVolume, setUseAveragePairs } =
+    useFilters();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filtersMenuRef = useRef<HTMLDivElement>(null);
-  const { ref: filtersDropdownRef, style: filtersDropdownStyle } = useKeepOnScreen<HTMLDivElement>(isFiltersOpen);
+  const { ref: filtersDropdownRef, style: filtersDropdownStyle } =
+    useKeepOnScreen<HTMLDivElement>(isFiltersOpen);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
-  const { ref: settingsDropdownRef, style: settingsDropdownStyle } = useKeepOnScreen<HTMLDivElement>(isSettingsOpen);
+  const { ref: settingsDropdownRef, style: settingsDropdownStyle } =
+    useKeepOnScreen<HTMLDivElement>(isSettingsOpen);
   const headerRef = useRef<HTMLElement>(null);
 
   const [investments, setInvestments] = useState<BestInvestmentEntry[]>([]);
   const [status, setStatus] = useState<QueryStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [poeNinjaStatus, setPoeNinjaStatus] = useState<PoeNinjaStatus | null>(null);
+  const [poeNinjaStatus, setPoeNinjaStatus] = useState<PoeNinjaStatus | null>(
+    null,
+  );
 
-  const [favoriteInvestments, setFavoriteInvestments] = useState<BestInvestmentEntry[]>([]);
-  const [favoritesStatus, setFavoritesStatus] = useState<QueryStatus>("loading");
+  const [favoriteInvestments, setFavoriteInvestments] = useState<
+    BestInvestmentEntry[]
+  >([]);
+  const [favoritesStatus, setFavoritesStatus] =
+    useState<QueryStatus>("loading");
 
   // The day window actually reflected in `investments`/`favoriteInvestments`
   // right now — deliberately NOT the same as `filters`. A chart's x-axis
@@ -95,6 +107,7 @@ function MarketOverview() {
     const timeoutId = window.setTimeout(() => {
       fetchBestInvestments(
         {
+          game,
           leagues: requestLeagueIds,
           categories: filters.categories,
           pairCurrencies: filters.pairCurrencies,
@@ -119,9 +132,12 @@ function MarketOverview() {
           });
         })
         .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (error instanceof DOMException && error.name === "AbortError")
+            return;
           setStatus("error");
-          setErrorMessage(error instanceof Error ? error.message : "Failed to load");
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load",
+          );
         });
     }, FETCH_DEBOUNCE_MS);
 
@@ -129,7 +145,7 @@ function MarketOverview() {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [filters, selectedLeagueIds, liveLeague]);
+  }, [game, filters, selectedLeagueIds, liveLeague]);
 
   // Starring/unstarring a card already shown in Best investments doesn't
   // need a round trip at all — we already have that exact item+pair's data
@@ -139,13 +155,20 @@ function MarketOverview() {
   // locally-known data yet, or when the day window/leagues change).
   useEffect(() => {
     setFavoriteInvestments((current) => {
-      const favoriteKeys = new Set(favorites.map((f) => `${f.itemId}::${f.pairId}`));
-      const kept = current.filter((inv) => favoriteKeys.has(`${inv.item.id}::${inv.pairId}`));
+      const favoriteKeys = new Set(
+        favorites.map((f) => `${f.itemId}::${f.pairId}`),
+      );
+      const kept = current.filter((inv) =>
+        favoriteKeys.has(`${inv.item.id}::${inv.pairId}`),
+      );
 
-      const keptKeys = new Set(kept.map((inv) => `${inv.item.id}::${inv.pairId}`));
+      const keptKeys = new Set(
+        kept.map((inv) => `${inv.item.id}::${inv.pairId}`),
+      );
       const newlyAvailable = investments.filter(
         (inv) =>
-          favoriteKeys.has(`${inv.item.id}::${inv.pairId}`) && !keptKeys.has(`${inv.item.id}::${inv.pairId}`),
+          favoriteKeys.has(`${inv.item.id}::${inv.pairId}`) &&
+          !keptKeys.has(`${inv.item.id}::${inv.pairId}`),
       );
 
       if (kept.length === current.length && newlyAvailable.length === 0) {
@@ -175,6 +198,7 @@ function MarketOverview() {
     const timeoutId = window.setTimeout(() => {
       fetchFavorites(
         {
+          game,
           favorites,
           leagues: requestLeagueIds,
           currentDayOfLeague: filters.currentDayOfLeague,
@@ -194,7 +218,8 @@ function MarketOverview() {
           });
         })
         .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (error instanceof DOMException && error.name === "AbortError")
+            return;
           setFavoritesStatus("error");
         });
     }, FETCH_DEBOUNCE_MS);
@@ -208,6 +233,7 @@ function MarketOverview() {
     // minVolume entirely, so a change to those shouldn't refetch this list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    game,
     favorites,
     selectedLeagueIds,
     liveLeague,
@@ -242,7 +268,10 @@ function MarketOverview() {
     const header = headerRef.current;
     if (!header) return;
     const updateHeaderHeight = () => {
-      document.documentElement.style.setProperty("--header-height", `${header.offsetHeight}px`);
+      document.documentElement.style.setProperty(
+        "--header-height",
+        `${header.offsetHeight}px`,
+      );
     };
     updateHeaderHeight();
     const observer = new ResizeObserver(updateHeaderHeight);
@@ -273,7 +302,8 @@ function MarketOverview() {
     favoriteInvestments.map((inv) => `${inv.item.id}::${inv.pairId}`),
   );
   const pendingFavoritesCount = favorites.filter(
-    (favorite) => !loadedFavoriteKeys.has(`${favorite.itemId}::${favorite.pairId}`),
+    (favorite) =>
+      !loadedFavoriteKeys.has(`${favorite.itemId}::${favorite.pairId}`),
   ).length;
 
   // True only while favoriteInvestments is stale for a reason that
@@ -288,16 +318,20 @@ function MarketOverview() {
     appliedFavoritesWindow.daysBack !== filters.daysBack ||
     appliedFavoritesWindow.daysForward !== filters.daysForward ||
     appliedFavoritesWindow.leagueIds.join(",") !== requestLeagueIds.join(",");
-  const favoritesIsLoading = favoritesStatus === "loading" && favoritesDataStale;
+  const favoritesIsLoading =
+    favoritesStatus === "loading" && favoritesDataStale;
 
   return (
     <>
       <header className="app-header" ref={headerRef}>
         <div className="app-header-inner">
-          <span className="app-header-title" aria-label="Jarnehall&rsquo;s Market Helper">
+          <span
+            className="app-header-title"
+            aria-label="Jarnehall&rsquo;s Market Helper"
+          >
             <img
               className="app-header-title-icon"
-              src={getImageUrl(DIVINE_ORB_IMAGE)}
+              src={getHeaderImage(game)}
               alt=""
               aria-hidden="true"
             />
@@ -305,119 +339,135 @@ function MarketOverview() {
               Jarnehall&rsquo;s Market Helper
             </span>
           </span>
-          <LeagueFilter>
-            <div className="filters-menu" ref={filtersMenuRef}>
-              <button
-                type="button"
-                className="filters-toggle-button"
-                aria-expanded={isFiltersOpen}
-                onClick={() => setIsFiltersOpen((open) => !open)}
-              >
-                Filters
-                <ChevronIcon open={isFiltersOpen} />
-              </button>
-              {isFiltersOpen && (
-                <div className="filters-dropdown" ref={filtersDropdownRef} style={filtersDropdownStyle}>
-                  <div className="dropdown-header">
-                    <button
-                      type="button"
-                      className="dropdown-close-button"
-                      aria-label="Close"
-                      onClick={() => setIsFiltersOpen(false)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <CategoryFilter />
-                  <PairCurrencyFilter />
-                  <MinVolumeSlider
-                    minVolume={filters.minVolume}
-                    setMinVolume={setMinVolume}
-                    minVolumeBound={bounds.minVolumeFilter}
-                    maxVolumeBound={bounds.maxVolumeFilter}
-                  />
-                </div>
-              )}
-            </div>
-            <div className="settings-menu" ref={settingsMenuRef}>
-              <button
-                type="button"
-                className="settings-toggle-button"
-                aria-expanded={isSettingsOpen}
-                onClick={() => setIsSettingsOpen((open) => !open)}
-              >
-                Settings
-                <ChevronIcon open={isSettingsOpen} />
-              </button>
-              {isSettingsOpen && (
-                <div className="settings-dropdown" ref={settingsDropdownRef} style={settingsDropdownStyle}>
-                  <div className="dropdown-header">
-                    <button
-                      type="button"
-                      className="dropdown-close-button"
-                      aria-label="Close"
-                      onClick={() => setIsSettingsOpen(false)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <DayOfLeagueSlider />
-                  <DaySpanSlider />
-                  <InvestmentCountSlider
-                    count={filters.investmentCount}
-                    setCount={setInvestmentCount}
-                    minCount={bounds.minBestInvestmentCount}
-                    maxCount={bounds.maxBestInvestmentCount}
-                  />
-                  <AveragePairsToggle
-                    checked={filters.useAveragePairs}
-                    onChange={setUseAveragePairs}
-                  />
-                  <div className="settings-info">
-                    <p className="settings-info-line">
-                      {visitorCount} unique visitor{visitorCount === 1 ? "" : "s"} since last deploy
-                    </p>
-                    {poeNinjaStatus?.checked && (
-                      <p
-                        className={
-                          hasPoeNinjaFailures
-                            ? "settings-info-line settings-info-line-warning"
-                            : "settings-info-line"
-                        }
+          <div className="app-header-controls">
+            <GameSwitcher />
+            <LeagueFilter>
+              <div className="filters-menu" ref={filtersMenuRef}>
+                <button
+                  type="button"
+                  className="filters-toggle-button"
+                  aria-expanded={isFiltersOpen}
+                  onClick={() => setIsFiltersOpen((open) => !open)}
+                >
+                  Filters
+                  <ChevronIcon open={isFiltersOpen} />
+                </button>
+                {isFiltersOpen && (
+                  <div
+                    className="filters-dropdown"
+                    ref={filtersDropdownRef}
+                    style={filtersDropdownStyle}
+                  >
+                    <div className="dropdown-header">
+                      <button
+                        type="button"
+                        className="dropdown-close-button"
+                        aria-label="Close"
+                        onClick={() => setIsFiltersOpen(false)}
                       >
-                        {hasPoeNinjaFailures
-                          ? `${poeNinjaStatus.failedItemIds.length} of ${poeNinjaStatus.attemptedCount} poe.ninja request${poeNinjaStatus.attemptedCount === 1 ? "" : "s"} failed on the last reload`
-                          : "All poe.ninja requests succeeded on the last reload"}
-                      </p>
-                    )}
+                        ×
+                      </button>
+                    </div>
+                    <CategoryFilter />
+                    <PairCurrencyFilter />
+                    <MinVolumeSlider
+                      minVolume={filters.minVolume}
+                      setMinVolume={setMinVolume}
+                      minVolumeBound={bounds.minVolumeFilter}
+                      maxVolumeBound={bounds.maxVolumeFilter}
+                    />
                   </div>
-                </div>
-              )}
-            </div>
-            <ResetFiltersButton />
-          </LeagueFilter>
+                )}
+              </div>
+              <div className="settings-menu" ref={settingsMenuRef}>
+                <button
+                  type="button"
+                  className="settings-toggle-button"
+                  aria-expanded={isSettingsOpen}
+                  onClick={() => setIsSettingsOpen((open) => !open)}
+                >
+                  Settings
+                  <ChevronIcon open={isSettingsOpen} />
+                </button>
+                {isSettingsOpen && (
+                  <div
+                    className="settings-dropdown"
+                    ref={settingsDropdownRef}
+                    style={settingsDropdownStyle}
+                  >
+                    <div className="dropdown-header">
+                      <button
+                        type="button"
+                        className="dropdown-close-button"
+                        aria-label="Close"
+                        onClick={() => setIsSettingsOpen(false)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <DayOfLeagueSlider />
+                    <DaySpanSlider />
+                    <InvestmentCountSlider
+                      count={filters.investmentCount}
+                      setCount={setInvestmentCount}
+                      minCount={bounds.minBestInvestmentCount}
+                      maxCount={bounds.maxBestInvestmentCount}
+                    />
+                    <AveragePairsToggle
+                      checked={filters.useAveragePairs}
+                      onChange={setUseAveragePairs}
+                    />
+                    <div className="settings-info">
+                      <p className="settings-info-line">
+                        {visitorCount} unique visitor
+                        {visitorCount === 1 ? "" : "s"} since last deploy
+                      </p>
+                      {poeNinjaStatus?.checked && (
+                        <p
+                          className={
+                            hasPoeNinjaFailures
+                              ? "settings-info-line settings-info-line-warning"
+                              : "settings-info-line"
+                          }
+                        >
+                          {hasPoeNinjaFailures
+                            ? `${poeNinjaStatus.failedItemIds.length} of ${poeNinjaStatus.attemptedCount} poe.ninja request${poeNinjaStatus.attemptedCount === 1 ? "" : "s"} failed on the last reload`
+                            : "All poe.ninja requests succeeded on the last reload"}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <ResetFiltersButton />
+            </LeagueFilter>
+          </div>
         </div>
       </header>
       <main className="market-overview">
         <header className="league-banner">
           <h1 className="league-banner-name">{currentLeague.name}</h1>
-          <p className="league-banner-started">
-            <span
-              className={
-                leagueHasStarted
-                  ? "league-banner-started-dot league-banner-started-dot-live"
-                  : "league-banner-started-dot"
-              }
-            />
-            <span className="league-banner-started-text">
-              {leagueHasStarted
-                ? `Started ${formatDate(currentLeague.startDate)}`
-                : `Starts ${formatDate(currentLeague.startDate)} (in ${formatTimeUntil(currentLeague.startDate)})`}
-            </span>
-          </p>
-          <p className="league-banner-started">
-            <span className="league-banner-started-text">Day {todayDayOfLeague}</span>
-          </p>
+          <div className="league-banner-started-group">
+            <p className="league-banner-started">
+              <span
+                className={
+                  leagueHasStarted
+                    ? "league-banner-started-dot league-banner-started-dot-live"
+                    : "league-banner-started-dot"
+                }
+              />
+              <span className="league-banner-started-text">
+                {leagueHasStarted
+                  ? `Started ${formatDate(currentLeague.startDate)}`
+                  : `Starts ${formatDate(currentLeague.startDate)} (in ${formatTimeUntil(currentLeague.startDate)})`}
+              </span>
+            </p>
+            <p className="league-banner-started">
+              <span className="league-banner-started-text">
+                Day {todayDayOfLeague}
+              </span>
+            </p>
+          </div>
         </header>
         {favoritesStatus !== "error" && (
           <BestInvestment

@@ -262,10 +262,37 @@ final class MarketData
      * best one — so the two stay consistent with each other; only the
      * chart/versus display always comes from the single best-performing
      * pair regardless of mode.
+     *
+     * Just the top $count of getRankedInvestments (below) — kept as its own
+     * method since most callers only ever want a fixed-size top-N and
+     * pre-existing tests already assert exactly that. BestInvestmentsController
+     * calls getRankedInvestments directly instead, when it needs access to
+     * the rest of the ranked pool too (backfilling past an item poe.ninja
+     * turns out to have no live-league data for — see
+     * InvestmentPayloadBuilder::applyLiveLeague).
      */
     public static function getBestInvestmentsForWindow(
         array $leagues,
         int $count,
+        int $currentDayOfLeague,
+        int $daysForward,
+        float $minVolume,
+        bool $useAveragePairs = false,
+    ): array {
+        return array_slice(
+            self::getRankedInvestments($leagues, $currentDayOfLeague, $daysForward, $minVolume, $useAveragePairs),
+            0,
+            $count,
+        );
+    }
+
+    /**
+     * Same ranking as getBestInvestmentsForWindow, but returns every
+     * qualifying investment (sorted, best first) rather than just the top
+     * $count of them.
+     */
+    public static function getRankedInvestments(
+        array $leagues,
         int $currentDayOfLeague,
         int $daysForward,
         float $minVolume,
@@ -391,7 +418,7 @@ final class MarketData
         $result = array_values($bestByItemId);
         usort($result, fn(array $a, array $b): int => $b['percentChange'] <=> $a['percentChange']);
 
-        return array_slice($result, 0, $count);
+        return $result;
     }
 
     /**

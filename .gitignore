@@ -14,7 +14,7 @@ dist-ssr
 .env
 
 # Live-league data cached from poe.ninja at runtime (see backend/src/DataAccess/PoeNinjaClient.php)
-data/cache/
+data/*/cache/
 
 # Editor directories and files
 .vscode/*

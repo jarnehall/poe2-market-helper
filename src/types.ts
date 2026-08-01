@@ -2,6 +2,10 @@
 // not a raw data-storage format like before; the frontend never sees the
 // underlying JSON files directly anymore.
 
+// Which game's data a request/context is scoped to — mirrors the backend's
+// own game keys (backend/config/leagues.php, ?game= on every /api/* route).
+export type Game = 'poe1' | 'poe2'
+
 export interface MarketItem {
   id: string
   name: string
@@ -14,7 +18,26 @@ export interface CurrentLeagueInfo {
   name: string
   version: string
   startDate: string
+  // poe.ninja's own economy-page URL slug for this league — not always the
+  // display name lowercased (e.g. POE1's "Curse of the Allflame" is
+  // poe.ninja's "allflame"). See MetaController's own computation of this.
+  poeNinjaLeague: string
 }
+
+// Response shape of the one endpoint that isn't scoped to a single game —
+// used only to decide which game's route "/" should redirect to (see
+// App.tsx's DefaultGameRedirect), by comparing both games' current
+// league startDate. Deliberately its own type rather than reusing
+// CurrentLeagueInfo above: that one's shape is what MetaController returns
+// today, not necessarily this endpoint's.
+export interface CurrentLeagueSummary {
+  id: string
+  name: string
+  color: string
+  startDate: string
+}
+
+export type CurrentLeaguesByGame = Record<Game, CurrentLeagueSummary>
 
 export interface LeagueMeta {
   id: string
